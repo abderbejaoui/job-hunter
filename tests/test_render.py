@@ -123,19 +123,44 @@ def test_export_refuses_a_plain_profile_with_a_placeholder(profile, tmp_path):
     assert not (tmp_path / "cv.pdf").exists()
 
 
-def test_export_of_a_clean_document_reaches_the_pdf_step(document, tmp_path, monkeypatch):
-    """The blocking check passes and the renderer is handed real HTML."""
+def test_export_of_a_clean_document_reaches_the_pdf_step(document, tmp_path,
+                                                         monkeypatch):
+    """The blocking check passes and the renderer is handed the real document.
+
+    `export` returns which renderer ran rather than the path it was given,
+    because the answer differs by machine now and the caller has to be able to
+    tell the user which one they got.
+    """
     seen = {}
-
-    def fake_write(html, path):
-        seen["html"] = html
-        path.write_bytes(b"%PDF-1.4 fake")
-        return path
-
-    monkeypatch.setattr(render, "write_pdf", fake_write)
-    result = render.export(document, tmp_path / "cv.pdf")
-    assert result.exists()
+    monkeypatch.setattr(render, "find_tex", lambda: None)
+    monkeypatch.setattr(render, "write_pdf",
+                        lambda html, path: seen.update(html=html))
+    assert render.export(document, tmp_path / "cv.pdf") == "browser"
     assert "Ada Lovelace" in seen["html"]
+
+
+def test_export_prefers_latex_where_there_is_an_engine(document, tmp_path,
+                                                       monkeypatch):
+    seen = {}
+    monkeypatch.setattr(render, "find_tex", lambda: "/usr/bin/pretend")
+    monkeypatch.setattr(render, "write_pdf_latex",
+                        lambda src, path, engine=None: seen.update(src=src))
+    assert render.export(document, tmp_path / "cv.pdf") == "latex"
+    assert "Ada Lovelace" in seen["src"]
+    assert "documentclass" in seen["src"]
+
+
+def test_a_blocked_document_becomes_no_file_by_either_route(document, tmp_path,
+                                                            monkeypatch):
+    """The guard sits above the choice of renderer, so adding a second one
+    cannot become a second way around it."""
+    document.personal.name = ""
+    document.personal.surname = ""
+    for engine in (None, "/usr/bin/pretend"):
+        monkeypatch.setattr(render, "find_tex", lambda e=engine: e)
+        with pytest.raises(render.ExportBlocked):
+            render.export(document, tmp_path / "cv.pdf")
+        assert not (tmp_path / "cv.pdf").exists()
 
 
 # --- a letter is written in one language, including its furniture ----------

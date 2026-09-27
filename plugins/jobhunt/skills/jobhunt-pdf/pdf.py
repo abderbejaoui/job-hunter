@@ -21,6 +21,12 @@ def work(argv):
     parser.add_argument("--out", help="where to write the PDF")
     parser.add_argument("--theme", default="neutral",
                         help="neutral, classic, or a #hex colour for the accent")
+    parser.add_argument("--template",
+                        help="a LaTeX template: a built-in name, or a path to "
+                             "a .tex file. Omitted, LaTeX is used anyway when "
+                             "a TeX engine is installed; the browser if not")
+    parser.add_argument("--browser", action="store_true",
+                        help="render through the browser even if TeX is there")
     args = parser.parse_args(argv)
 
     source = Path(args.source)
@@ -47,16 +53,25 @@ def work(argv):
                  "blocking": [f"{i.path}: {i.message}" for i in blocked]})
         raise jh.ExportBlocked(blocked)
 
+    if args.browser and args.template:
+        print("--browser and --template ask for different renderers.",
+              file=sys.stderr)
+        return jh.BLOCKED
+
     try:
-        jh.export(document, out, theme)
+        if args.browser:
+            jh.write_pdf(jh.to_html(document, theme), out)
+            how = "browser"
+        else:
+            how = jh.export(document, out, theme, args.template)
     except jh.PdfError as exc:
         jh.emit({"markdown": str(markdown), "pdf": None, "error": str(exc)})
         print(str(exc), file=sys.stderr)
         return jh.OK  # the markdown is real and sendable; this is not a failure
 
     jh.emit({"markdown": str(markdown), "pdf": str(out),
-             "bytes": out.stat().st_size, "theme": theme.name})
-    print(f"Wrote {out} and {markdown}", file=sys.stderr)
+             "bytes": out.stat().st_size, "theme": theme.name, "rendered": how})
+    print(f"Wrote {out} and {markdown} ({how})", file=sys.stderr)
     return jh.OK
 
 

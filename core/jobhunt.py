@@ -2462,8 +2462,11 @@ def to_html(document, theme=NEUTRAL):
     return (letter_html if hasattr(document, "paragraphs") else cv_html)(document, theme)
 
 
-def export(document, path, theme=NEUTRAL):
-    """Write a CV or a cover letter to `path` as a PDF.
+def export(document, path, theme=NEUTRAL, template=None):
+    """Write a CV or a cover letter to `path` as a PDF, and say how.
+
+    LaTeX when a TeX engine is on the machine, the browser otherwise. Returns
+    which, because that belongs in what the user is told rather than in a log.
 
     Raises `ExportBlocked` if the document reports a blocking issue - which is
     how "nothing becomes a PDF until it is fit to send" is actually kept.
@@ -2471,7 +2474,7 @@ def export(document, path, theme=NEUTRAL):
     blocked = blocking_issues(document)
     if blocked:
         raise ExportBlocked(blocked)
-    return write_pdf(to_html(document, theme), Path(path))
+    return render_pdf(document, Path(path), template, theme)
 
 
 # --- render: PDF, via the browser already on the machine --------------------
@@ -2519,6 +2522,367 @@ def find_browser():
         if found:
             return found
     return None
+
+
+# --- LaTeX ------------------------------------------------------------------
+#
+# The default, when a TeX engine is on the machine and no template was asked
+# for. A CV set in LaTeX is what most of this tool's readers are used to
+# sending, and the browser renderer cannot match its typesetting.
+#
+# It stays a *default*, not a requirement. Nothing here is installed for the
+# user and nothing fails without it: with no engine, `render_pdf` falls back to
+# the browser and says which it used. That is the whole promise of the project
+# - a machine with Python and a browser is enough - and adding a 300MB
+# toolchain to the hard requirements would break it.
+
+#: Preferred first. tectonic is one self-contained binary and fetches what a
+#: document needs, so it is the one most likely to work on a fresh machine.
+_TEX_NAMES = ("tectonic", "xelatex", "lualatex", "pdflatex")
+
+#: MacTeX and TeX Live put themselves here and not always on PATH.
+_TEX_DIRS = ("/Library/TeX/texbin", "/usr/local/texlive/bin",
+             "/opt/homebrew/bin", "/usr/local/bin")
+
+_TEX_TIMEOUT = 300.0
+
+#: Replaced in one pass, not one rule after another. Run in sequence, the
+#: braces in `\textbackslash{}` are themselves escaped by the rule two lines
+#: later, and a backslash comes out as `\textbackslash\{\}`.
+_TEX_ESCAPES = {
+    "\\": r"\textbackslash{}",
+    "&": r"\&", "%": r"\%", "$": r"\$", "#": r"\#",
+    "_": r"\_", "{": r"\{", "}": r"\}",
+    "~": r"\textasciitilde{}", "^": r"\textasciicircum{}",
+}
+_TEX_SPECIAL = re.compile("[" + re.escape("".join(_TEX_ESCAPES)) + "]")
+
+#: Characters a CV really contains that the plain T1 font encoding cannot set.
+#: They do not fail loudly - they come out as nothing at all, so "Fu\u00dfball" prints
+#: as "FuSSball" and an em dash simply is not there. Mapped to LaTeX's own
+#: spellings, which every engine understands, rather than solved with fontspec:
+#: fontspec would tie the template to a Unicode engine and a named font, and
+#: this template has to compile under pdflatex on somebody else's machine.
+_TEX_UNICODE = {
+    "\u2014": "---", "\u2013": "--", "\u2212": "-", "\u2010": "-", "\u2011": "-",
+    "\u201c": "``", "\u201d": "\'\'", "\u201e": ",,", "\u2018": "`", "\u2019": "\'",
+    "\u00ab": "\\guillemotleft{}", "\u00bb": "\\guillemotright{}",
+    "\u00df": "\\ss{}", "\u2026": "\\ldots{}", "\u2022": "\\textbullet{}",
+    "\u00b7": "$\\cdot$", "\u2192": "$\\rightarrow$", "\u2190": "$\\leftarrow$",
+    "\u00d7": "$\\times$", "\u2265": "$\\geq$", "\u2264": "$\\leq$",
+    "\u20ac": "\\texteuro{}", "\u00a3": "\\pounds{}", "\u00a0": "~",
+    "\u00ad": "", "\u200b": "",
+}
+_TEX_OUTSIDE = re.compile("[" + re.escape("".join(_TEX_UNICODE)) + "]")
+
+
+def find_tex():
+    """A TeX engine on this machine, or None.
+
+    `JOBHUNT_TEX` overrides, for an engine somewhere unusual.
+    """
+    named = os.environ.get("JOBHUNT_TEX", "").strip()
+    if named:
+        return named if Path(named).exists() else shutil.which(named)
+    for name in _TEX_NAMES:
+        found = shutil.which(name)
+        if found:
+            return found
+    for folder in _TEX_DIRS:
+        for name in _TEX_NAMES:
+            candidate = Path(folder) / name
+            if candidate.exists():
+                return str(candidate)
+    return None
+
+
+def tex_escape(text):
+    """`text` as LaTeX body text.
+
+    Everything a person writes in a CV goes through here. An unescaped `&` or
+    `%` does not look wrong in the PDF - it stops the document compiling, or
+    silently swallows the rest of the line.
+    """
+    out = _TEX_SPECIAL.sub(lambda m: _TEX_ESCAPES[m.group()], str(text))
+    return _TEX_OUTSIDE.sub(lambda m: _TEX_UNICODE[m.group()], out)
+
+
+#: Deliberately plain packages. Every one of these ships with any TeX
+#: installation, so the template compiles under tectonic, xelatex, lualatex and
+#: pdflatex alike. A template that needs fontawesome or a bespoke class is a
+#: template that fails on somebody else's machine.
+PLAIN_TEX = r"""
+\documentclass[11pt,a4paper]{article}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[margin=18mm,top=16mm,bottom=16mm]{geometry}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage[hidelinks]{hyperref}
+
+\definecolor{accent}{HTML}{%%JOBHUNT-ACCENT%%}
+\definecolor{ink}{HTML}{14181D}
+\definecolor{muted}{HTML}{5B6570}
+\color{ink}
+
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\setlist[itemize]{leftmargin=12pt,itemsep=1pt,parsep=0pt,topsep=3pt}
+
+\newcommand{\cvname}[1]{{\LARGE\bfseries #1}\par\vspace{3pt}}
+\newcommand{\cvcontact}[1]{{\small\color{muted}#1}\par\vspace{10pt}}
+\newcommand{\cvsection}[1]{%
+  \vspace{8pt}{\footnotesize\bfseries\color{accent}\MakeUppercase{#1}}\par
+  \vspace{2pt}\textcolor{muted}{\rule{\linewidth}{0.4pt}}\par\vspace{4pt}}
+\newcommand{\cventry}[2]{\textbf{#1}\par{\small\color{muted}#2}\par}
+
+\begin{document}
+%%JOBHUNT-BODY%%
+\end{document}
+"""
+
+#: The same preamble, set for prose rather than for a list of entries.
+PLAIN_LETTER_TEX = r"""
+\documentclass[11pt,a4paper]{article}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{textcomp}
+\usepackage[margin=22mm,top=20mm,bottom=20mm]{geometry}
+\usepackage{xcolor}
+\usepackage[hidelinks]{hyperref}
+
+\definecolor{accent}{HTML}{%%JOBHUNT-ACCENT%%}
+\definecolor{ink}{HTML}{14181D}
+\definecolor{muted}{HTML}{5B6570}
+\color{ink}
+
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{9pt}
+
+\newcommand{\cvname}[1]{{\large\bfseries #1}\par}
+\newcommand{\cvcontact}[1]{{\small\color{muted}#1}\par}
+
+\begin{document}
+%%JOBHUNT-BODY%%
+\end{document}
+"""
+
+LATEX_TEMPLATES = {"plain": PLAIN_TEX, "plain-letter": PLAIN_LETTER_TEX}
+
+
+def resolve_template(name):
+    """A LaTeX template by name or path, or None if `name` names neither.
+
+    A path is read from disk, so somebody can bring their own `.tex` without
+    this file knowing anything about it.
+    """
+    key = (name or "").strip()
+    if not key:
+        return None
+    if key.lower() in LATEX_TEMPLATES:
+        return LATEX_TEMPLATES[key.lower()]
+    path = Path(key)
+    if path.suffix.lower() == ".tex" and path.exists():
+        return path.read_text(encoding="utf-8")
+    return None
+
+
+def _cmd(name, *args):
+    """`\\name{arg}{arg}`. A helper rather than an f-string, because an
+    f-string would need every LaTeX brace in here doubled."""
+    return "\\" + name + "".join("{" + a + "}" for a in args)
+
+
+def _tex_dots(*parts):
+    """Escaped parts, joined by a LaTeX middle dot.
+
+    Escaping happens per part and never to the join. Escaping the joined
+    string instead puts a literal `$\\cdot$` on the page, which is exactly
+    what the first version of this did.
+    """
+    return " $\\cdot$ ".join(tex_escape(p) for p in parts if p)
+
+
+def _tex_contact(personal):
+    return _tex_dots(personal.email, personal.phone,
+                     ", ".join(x for x in (personal.city, personal.country) if x),
+                     personal.github, personal.linkedin, personal.website)
+
+
+def cv_latex(document, template=None, theme=NEUTRAL):
+    """A CV as a LaTeX source document."""
+    shell = template or PLAIN_TEX
+    body = []
+
+    body.append(_cmd("cvname", tex_escape(document.personal.full_name or "CV")))
+    if document.personal.headline:
+        body.append("{\\small " + tex_escape(document.personal.headline)
+                    + "}\\par\\vspace{4pt}")
+    contact = _tex_contact(document.personal)
+    if contact:
+        body.append(_cmd("cvcontact", contact))
+    if document.summary:
+        body.append(tex_escape(document.summary) + "\\par")
+
+    if document.experience:
+        body.append("\\cvsection{Experience}")
+        for role in document.experience:
+            where = " --- ".join(x for x in (role.company, role.location) if x)
+            body.append(_cmd("cventry", tex_escape(role.position or where),
+                             _tex_dots(where if role.position else "",
+                                       role.period)))
+            if role.bullets:
+                body.append("\\begin{itemize}")
+                body += ["  \\item " + tex_escape(b) for b in role.bullets]
+                body.append("\\end{itemize}")
+            body.append("\\vspace{4pt}")
+
+    if document.projects:
+        body.append("\\cvsection{Projects}")
+        for project in document.projects:
+            body.append(_cmd("cventry", tex_escape(project.name),
+                             tex_escape(", ".join(project.tech))
+                             if project.tech else ""))
+            if project.description:
+                body.append(tex_escape(project.description) + "\\par")
+            body.append("\\vspace{4pt}")
+
+    if document.education:
+        body.append("\\cvsection{Education}")
+        for study in document.education:
+            head = ", ".join(x for x in (study.level, study.field_of_study) if x)
+            body.append(_cmd("cventry", tex_escape(head or study.institution),
+                             _tex_dots(study.institution if head else "",
+                                       study.location, study.period,
+                                       study.grade)))
+            body.append("\\vspace{3pt}")
+
+    if document.skills:
+        body.append("\\cvsection{Skills}")
+        body.append(_tex_dots(*document.skills) + "\\par")
+
+    if document.languages:
+        body.append("\\cvsection{Languages}")
+        body.append(_tex_dots(*[" ".join(x for x in (lang.name, lang.level) if x)
+                                for lang in document.languages]) + "\\par")
+
+    accent = (theme.accent if theme else NEUTRAL.accent).lstrip("#").upper()
+    return (shell.replace("%%JOBHUNT-ACCENT%%", accent)
+                 .replace("%%JOBHUNT-BODY%%", "\n".join(body)))
+
+
+def letter_latex(document, template=None, theme=NEUTRAL):
+    """A cover letter as a LaTeX source document."""
+    shell = template or PLAIN_LETTER_TEX
+    body = [_cmd("cvname", tex_escape(document.personal.full_name or ""))]
+    contact = _tex_contact(document.personal)
+    if contact:
+        body.append(_cmd("cvcontact", contact))
+    body.append("\\vspace{10pt}")
+
+    for line in (document.written_on, document.company, document.role):
+        if line:
+            body.append(tex_escape(line) + "\\par")
+    if document.greeting:
+        body.append("\\vspace{6pt}" + tex_escape(document.greeting) + "\\par")
+    for para in document.paragraphs:
+        body.append(tex_escape(para) + "\\par")
+    if document.closing:
+        body.append("\\vspace{6pt}" + tex_escape(document.closing) + "\\par")
+    if document.signature:
+        body.append("\\vspace{14pt}" + tex_escape(document.signature) + "\\par")
+
+    accent = (theme.accent if theme else NEUTRAL.accent).lstrip("#").upper()
+    return (shell.replace("%%JOBHUNT-ACCENT%%", accent)
+                 .replace("%%JOBHUNT-BODY%%", "\n".join(body)))
+
+
+def to_latex(document, template=None, theme=NEUTRAL):
+    """Whichever kind of document this is, as LaTeX."""
+    maker = letter_latex if hasattr(document, "paragraphs") else cv_latex
+    return maker(document, template, theme)
+
+
+def write_pdf_latex(source, path, engine=None):
+    """Compile LaTeX `source` to a PDF at `path`.
+
+    Raises `PdfError` naming the engine's own complaint, because a LaTeX error
+    is usually one line and usually exact.
+    """
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    engine = engine or find_tex()
+    if engine is None:
+        raise PdfError(
+            "No TeX engine found, so the LaTeX PDF could not be made. Install "
+            "tectonic (one self-contained binary) or any TeX distribution, or "
+            "set JOBHUNT_TEX. The markdown version was still written.")
+
+    work = Path(tempfile.mkdtemp(prefix="jobhunt-tex-"))
+    tex = work / "document.tex"
+    tex.write_text(source, encoding="utf-8")
+    name = Path(engine).name.lower()
+    if "tectonic" in name:
+        command = [engine, "--outdir", str(work), "--chatter", "minimal",
+                   "--reruns", "0", str(tex)]
+    else:
+        command = [engine, "-interaction=nonstopmode", "-halt-on-error",
+                   f"-output-directory={work}", str(tex)]
+
+    try:
+        done = subprocess.run(command, cwd=str(work), timeout=_TEX_TIMEOUT,
+                              stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    except OSError as exc:
+        shutil.rmtree(work, ignore_errors=True)
+        raise PdfError(f"Could not start {engine}: {exc}") from exc
+    except subprocess.TimeoutExpired as exc:
+        shutil.rmtree(work, ignore_errors=True)
+        raise PdfError(
+            f"{name} did not finish within {_TEX_TIMEOUT:.0f}s. A first run "
+            "downloads the package bundle and can take minutes; a second run "
+            "is under a second. The markdown version was still written."
+        ) from exc
+
+    made = work / "document.pdf"
+    try:
+        if not made.exists():
+            raise PdfError(f"{name} produced no PDF.\n{_tex_complaint(done)}")
+        path.write_bytes(made.read_bytes())
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+
+
+def _tex_complaint(done):
+    """The lines of a TeX log that say what went wrong, not all 900 of them."""
+    log = (done.stdout or b"").decode("utf-8", "replace").splitlines()
+    said = [line for line in log
+            if line.startswith("!") or "Error" in line or "error:" in line]
+    return "\n".join(said[:6]) or "\n".join(log[-6:])
+
+
+def render_pdf(document, path, template=None, theme=NEUTRAL):
+    """Render `document` to `path`, and say how it was rendered.
+
+    LaTeX when a template was asked for, or when one is not and an engine is
+    there. The browser otherwise - which is not a failure and is not silent:
+    the returned name is what the caller tells the user.
+    """
+    asked = resolve_template(template)
+    if template and asked is None:
+        raise PdfError(
+            f"No template called {template!r}. Built in: "
+            f"{', '.join(sorted(LATEX_TEMPLATES))}. A path must end in .tex.")
+
+    if asked is None and find_tex() is None:
+        write_pdf(to_html(document, theme), path)
+        return "browser"
+
+    if asked is None and hasattr(document, "paragraphs"):
+        asked = PLAIN_LETTER_TEX
+    write_pdf_latex(to_latex(document, asked, theme), path)
+    return "latex"
 
 
 def write_pdf(page, path):

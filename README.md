@@ -87,6 +87,11 @@ has, and Chrome, Chromium, Edge or Brave for reading job pages and making PDFs.
 No API key — your agent is the model, so whatever you already pay for covers
 it.
 
+**Optional:** a TeX engine. If you have one — `tectonic` is a single binary —
+CVs and letters are set in LaTeX instead, which is what most people expect a CV
+to look like and is several times faster. Nothing needs it: with no engine the
+browser renders them exactly as before, and the tool tells you which it used.
+
 ## Using it
 
 Put your CV somewhere, open your agent in a folder you want to work in, and
