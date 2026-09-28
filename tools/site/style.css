@@ -801,3 +801,12 @@ footer nav a { color: var(--ink-soft); }
 
 .sr { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
       overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+/* --- the sheets (three.js, from enhance.js) ------------------------------ */
+/* Behind everything in the field and never in the way of it. Faded in, so a
+   slow CDN shows up as the scene arriving late rather than popping in. */
+.sheets { position: absolute; inset: 0; width: 100%; height: 100%;
+          pointer-events: none; z-index: 0; opacity: 0;
+          transition: opacity 1.6s var(--ease); }
+.sheets.on { opacity: 1; }
+.field > .wrap, .field > .slider { position: relative; z-index: 1; }

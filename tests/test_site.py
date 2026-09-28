@@ -662,3 +662,31 @@ def test_the_copy_count_in_the_markup_matches_the_one_the_animation_uses(page):
     assert f'style="--copies: {data.BOARD_COPIES}"' in page
     assert page.count('<div class="row"') == data.BOARD_COPIES
     assert "translateX(calc(-100% / var(--copies)))" in page
+
+
+# --- the enhancement layer ----------------------------------------------------
+
+
+def test_the_enhancements_are_optional_by_construction(page):
+    """three.js and Motion come from a CDN, so the page must not need them.
+    They live in their own module, pinned to exact versions, loaded by
+    dynamic import so a failure is catchable, and the module stands down
+    entirely on reduced motion."""
+    js = (ROOT / "tools" / "site" / "enhance.js").read_text(encoding="utf-8")
+    assert '<script type="module">' in page
+    assert "motion@11.11.13" in js and "three@0.170.0" in js, "unpinned"
+    assert "await import(MOTION)" in js and "await import(THREE)" in js
+    assert ".catch(" in js, "a CDN failure would surface as an error"
+    assert "prefers-reduced-motion: reduce" in js
+    # nothing the page needs to work may live only in the optional layer
+    for essential in ("data-type", "agent-panel", "class=\"row\""):
+        assert essential in page
+
+
+def test_no_sheet_sits_behind_the_headline():
+    """Sheets are placed as a share of the half-width visible at their own
+    depth. The headline reaches about 47% of it; the inner edge must clear
+    that, or a close sheet ends up printed across the words."""
+    js = (ROOT / "tools" / "site" / "enhance.js").read_text(encoding="utf-8")
+    inner = float(re.search(r"const out = \((0\.\d+) \+", js).group(1))
+    assert inner >= 0.5, inner

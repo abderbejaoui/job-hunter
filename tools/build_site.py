@@ -183,6 +183,7 @@ HIDDEN = ' aria-hidden="true"'
 def build():
     css = (SITE / "style.css").read_text(encoding="utf-8")
     js = (SITE / "app.js").read_text(encoding="utf-8")
+    enhance = (SITE / "enhance.js").read_text(encoding="utf-8")
 
     # The ghost holds the sentence's full size from the first frame, so the
     # page below it does not jump as characters land.
@@ -458,6 +459,7 @@ def build():
 </footer>
 
 <script>{js}</script>
+<script type="module">{enhance}</script>
 </body>
 </html>
 """
