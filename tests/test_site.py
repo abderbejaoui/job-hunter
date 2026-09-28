@@ -515,27 +515,17 @@ def test_the_first_screenful_is_visible_at_rest(moving, part):
 
 
 @needs_browser
-def test_the_headline_types_itself_out_and_then_holds_still(moving):
-    """One sentence, typed once. Sampled twice, because a headline that never
-    starts and a headline that never stops both pass a single sample - the
-    first sample is only what the script seeds, and an earlier version of this
-    test was fooled by exactly that.
-
-    The second sample has to be the whole sentence and nothing less: the old
-    headline deleted itself and started over forever, which is the behaviour
-    this replaced."""
+def test_the_headline_keeps_rewriting_itself(moving):
+    """The sentence says "stop sending the same CV"; the animation does the
+    rewriting, forever. Sampled twice: a headline that never starts passes a
+    single sample, and an earlier version of this test was fooled by that.
+    Where in the loop the second sample lands is timing, so all it may assert
+    is that the text moved and never outgrew the sentence."""
     sys.path.insert(0, str(ROOT / "tools" / "site"))
     import data
     whole = len(data.HEADLINE_TYPED)
-    # The early sample is allowed to be empty - the sentence starts after a
-    # beat now, where the old one was seeded whole before the loop touched it.
-    # What has to hold is that it changed between the samples (so it typed
-    # rather than simply appearing) and that it ended up complete.
     assert moving["typedMoved"] == "true", "the headline never typed anything"
-    assert int(moving["typedLater"]) == whole, (
-        f"settled at {moving['typedLater']} of {whole} characters")
-    assert int(moving["typed"]) < whole, (
-        "it was already finished at the first sample, so nothing was typed")
+    assert int(moving["typedLater"]) <= whole, moving["typedLater"]
 
 
 @needs_browser

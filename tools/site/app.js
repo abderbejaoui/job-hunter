@@ -146,11 +146,10 @@
     });
   }
 
-  // --- the headline, typed once -------------------------------------------
-  // It used to alternate between two phrases forever. A headline that never
-  // holds still is a headline nobody finishes reading, so now the sentence
-  // arrives once and stays. The caret goes with the last character: there is
-  // nothing left for it to be waiting for.
+  // --- the headline, rewritten forever -----------------------------------
+  // The sentence says "stop sending the same CV"; the animation does the other
+  // half - it deletes the line and writes it again, and again. Slow on purpose:
+  // it has to be readable at every point, not just when it is complete.
 
   var swap = document.querySelector(".type");
   var live = swap && swap.querySelector(".live");
@@ -160,14 +159,16 @@
       live.textContent = whole;
       swap.classList.add("done");
     } else {
-      var cut = 0;
+      var cut = 0, back = false;
       var step = function () {
-        cut = Math.min(whole.length, cut + 1);
+        cut += back ? -1 : 1;
         live.textContent = whole.slice(0, cut);
-        if (cut >= whole.length) { swap.classList.add("done"); return; }
-        setTimeout(step, 26);
+        var wait = back ? 35 : 90;
+        if (!back && cut >= whole.length) { back = true; wait = 2600; }
+        else if (back && cut <= 0) { back = false; wait = 700; }
+        setTimeout(step, wait);
       };
-      setTimeout(step, 320);
+      setTimeout(step, 400);
     }
   }
 

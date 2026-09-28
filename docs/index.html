@@ -9,7 +9,7 @@
 <meta name="color-scheme" content="dark">
 <meta property="og:title" content="jobhunt">
 <meta property="og:description"
-      content="Stop sending the same CV for every single job and keep rewriting that one.">
+      content="Stop sending the same CV for every single job.">
 <meta property="og:type" content="website">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><circle cx='8' cy='8' r='7' fill='%2312664a'/></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -848,7 +848,7 @@ footer nav a { color: var(--ink-soft); }
 <div class="field">
   <div class="wrap hero">
     <span class="eyebrow glass up"><svg class="ico" viewBox="0 0 256 256" aria-hidden="true"><path d="M216,56H176V48a24,24,0,0,0-24-24H104A24,24,0,0,0,80,48v8H40A16,16,0,0,0,24,72V200a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V72A16,16,0,0,0,216,56ZM96,48a8,8,0,0,1,8-8h48a8,8,0,0,1,8,8v8H96ZM216,72v41.61A184,184,0,0,1,128,136a184.07,184.07,0,0,1-88-22.38V72Zm0,128H40V131.64A200.19,200.19,0,0,0,128,152a200.25,200.25,0,0,0,88-20.37V200ZM104,112a8,8,0,0,1,8-8h32a8,8,0,0,1,0,16H112A8,8,0,0,1,104,112Z"/></svg>Works with any job link</span>
-    <h1 class="up">Stop <span class="type" data-type="sending the same CV for every single job and keep rewriting that one."><span class="ghost">sending the same CV for every single job and keep rewriting that one.</span><span class="live" aria-hidden="true"></span></span></h1>
+    <h1 class="up">Stop <span class="type" data-type="sending the same CV for every single job."><span class="ghost">sending the same CV for every single job.</span><span class="live" aria-hidden="true"></span></span></h1>
     <div class="cta up">
       <a class="btn btn-go" href="#install">Install<svg class="ico" viewBox="0 0 256 256" aria-hidden="true"><path d="M221.66,133.66l-72,72a8,8,0,0,1-11.32-11.32L196.69,136H40a8,8,0,0,1,0-16H196.69L138.34,61.66a8,8,0,0,1,11.32-11.32l72,72A8,8,0,0,1,221.66,133.66Z"/></svg></a>
       <a class="btn btn-ghost" href="#how">See how it works</a>
@@ -1171,11 +1171,10 @@ footer nav a { color: var(--ink-soft); }
     });
   }
 
-  // --- the headline, typed once -------------------------------------------
-  // It used to alternate between two phrases forever. A headline that never
-  // holds still is a headline nobody finishes reading, so now the sentence
-  // arrives once and stays. The caret goes with the last character: there is
-  // nothing left for it to be waiting for.
+  // --- the headline, rewritten forever -----------------------------------
+  // The sentence says "stop sending the same CV"; the animation does the other
+  // half - it deletes the line and writes it again, and again. Slow on purpose:
+  // it has to be readable at every point, not just when it is complete.
 
   var swap = document.querySelector(".type");
   var live = swap && swap.querySelector(".live");
@@ -1185,14 +1184,16 @@ footer nav a { color: var(--ink-soft); }
       live.textContent = whole;
       swap.classList.add("done");
     } else {
-      var cut = 0;
+      var cut = 0, back = false;
       var step = function () {
-        cut = Math.min(whole.length, cut + 1);
+        cut += back ? -1 : 1;
         live.textContent = whole.slice(0, cut);
-        if (cut >= whole.length) { swap.classList.add("done"); return; }
-        setTimeout(step, 26);
+        var wait = back ? 35 : 90;
+        if (!back && cut >= whole.length) { back = true; wait = 2600; }
+        else if (back && cut <= 0) { back = false; wait = 700; }
+        setTimeout(step, wait);
       };
-      setTimeout(step, 320);
+      setTimeout(step, 400);
     }
   }
 

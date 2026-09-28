@@ -29,8 +29,7 @@ BRANDS = json.loads((HERE / "brands.json").read_text(encoding="utf-8"))
 #: meant the headline never held still long enough to be read by somebody who
 #: had just arrived.
 HEADLINE_FIXED = "Stop "
-HEADLINE_TYPED = ("sending the same CV for every single job "
-                  "and keep rewriting that one.")
+HEADLINE_TYPED = "sending the same CV for every single job."
 
 #: Boards it is regularly pointed at. It takes any job URL.
 BOARDS = ["linkedin", "indeed", "greenhouse", "glassdoor", "upwork"]
