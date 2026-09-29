@@ -131,6 +131,14 @@ svg { display: block; }
   color: var(--on-field);
   padding: 118px 0 74px;
   overflow: hidden;
+  /* The first screen is the hero and nothing else. svh, not vh: on a phone
+     vh counts the space under the browser's own toolbar, and the bottom of
+     the hero ends up hidden behind it. */
+  min-height: 100vh;
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 @media (max-width: 720px) { .field { padding: 104px 0 56px; } }
 
@@ -265,8 +273,8 @@ svg { display: block; }
 }
 .eyebrow .ico { width: 15px; height: 15px; }
 
-h1 { font-size: clamp(2.4rem, 6.6vw, 4.6rem); letter-spacing: -.042em;
-     line-height: 1.02; max-width: 16ch; margin: 0 auto;
+h1 { font-size: clamp(2.6rem, 7.2vw, 6.6rem); letter-spacing: -.045em;
+     line-height: 1; max-width: 18ch; margin: 0 auto;
      text-wrap: balance; }
 /* No `h1 span { display: block }` here. The headline used to be three hard
    lines of spans; it is one sentence now with a piece that retypes itself,
