@@ -194,6 +194,10 @@ def test_the_delta_reads_as_a_sentence(profile):
     ("Kafka", ["Kafka"]),
     ("Kubernetes in production", ["Kubernetes"]),
     ("Deep PostgreSQL knowledge", ["PostgreSQL"]),
+    # A verb followed only by names is still a sentence.
+    ("Build REST APIs", ["REST", "APIs"]),
+    # A list keeps its first word even when the candidate lacks it.
+    ("Kafka, Flink, or similar streaming technologies", ["Kafka", "Flink"]),
     # The cost, pinned so it is a decision and not a surprise: a tool that
     # opens a real sentence is missed unless the candidate lists it.
     ("Kubernetes for container orchestration", []),
@@ -202,6 +206,21 @@ def test_the_first_word_of_a_sentence_is_not_a_name(line, expected):
     """"Build data pipelines" asks for pipelines. It used to report a gap
     called Build, and "Own", "Design" and "Mentor" beside it - one per
     responsibility-shaped requirement line."""
+    assert jobhunt.salient_terms(line) == expected
+
+
+@pytest.mark.parametrize("line, expected", [
+    # Found on a live posting: two lowercase words joined by a slash are
+    # not a tool, and were each reported as a gap.
+    ("Distributed systems fundamentals (networking, caching/storage concepts)", []),
+    ("Comfortable writing docs/runbooks and collaborating across teams", []),
+    ("Experience with service mesh patterns (e.g., Istio mTLS)", ["Istio", "mTLS"]),
+    # A slash between names still joins them.
+    ("CI/CD and TCP/IP experience", ["CI/CD", "TCP/IP"]),
+    ("Build REST/gRPC APIs", ["REST/gRPC", "APIs"]),
+    ("Node.js, .NET or C#", ["Node.js", "NET", "C#"]),
+])
+def test_a_slash_between_two_words_is_punctuation_not_a_name(line, expected):
     assert jobhunt.salient_terms(line) == expected
 
 
