@@ -930,7 +930,7 @@ class FitReport:
 _NOISE = frozenset("""
 a an the and or of for to in at on with by from new our we you your job role
 position opening opportunity career careers hiring m f d w x h
-one two three four five six seven eight nine ten
+one two three four five six seven eight nine ten e.g i.e etc vs
 du sie wir ihr der die das den dem ein eine einen als auch bei mit von und oder
 le la les un une des du au aux et ou avec chez dans pour par
 """.split())
@@ -982,12 +982,45 @@ _YEARS = re.compile(
 _PRESENT = frozenset("present now current ongoing today heute aujourd'hui actuel".split())
 
 
-def _content(word, vocabulary):
-    """A lowercase word that is neither furniture nor a tool the candidate
-    lists - the kind that makes a line a sentence rather than a list of names."""
+#: A list mark right after the first word: "Docker, Kubernetes, Helm", "C++/Rust".
+_LIST_MARK = re.compile(r"^\W*[^\s,/&]+\s*[,/&]")
+_CONJUNCTIONS = frozenset("and or und oder et ou".split())
+
+
+def _kind(word, vocabulary, ordinary):
+    """What one token is to a reader. None for furniture - noise, scaffolding,
+    HR vocabulary, a word the posting itself writes in lowercase elsewhere.
+    "name" when something marks it as one: an acronym, a capital inside it, a
+    digit, a symbol, a slash between two names, or a place on the candidate's
+    own skills list. "capital" when only its leading capital says so.
+    "content" for an ordinary lowercase word, which is what makes a sentence."""
     key = norm(word)
-    return (len(word) > 1 and word[0].islower() and key not in vocabulary
-            and key not in _NOISE and key not in _SCAFFOLDING and key not in _SOFT)
+    if len(word) < 2 or key in _NOISE or key in _SCAFFOLDING or key in _SOFT:
+        return None
+    if (word.isupper() or any(c.isupper() for c in word[1:])
+            or any(c.isdigit() or c in "+#." for c in word)
+            or ("/" in word and any(c.isupper() or c.isdigit() for c in word))
+            or key in vocabulary):
+        return "name"
+    if word[0].isupper():
+        return "capital" if key not in ordinary else None
+    return "content"
+
+
+def _list_head(line, tokens, kinds):
+    """Whether the first word heads a list of names rather than a sentence.
+
+    "Docker, Kubernetes, Helm" and "Kubernetes and Docker" are lists: a list
+    mark after the first word, and a name on the other side of it. "Design
+    and implement REST APIs" has the conjunction and not the name, and reads
+    as the sentence it is.
+    """
+    if len(tokens) < 2:
+        return False
+    if _LIST_MARK.match(line) is None and norm(tokens[1]) not in _CONJUNCTIONS:
+        return False
+    following = next((kind for kind in kinds[1:] if kind is not None), None)
+    return following in ("name", "capital")
 
 
 def salient_terms(line, vocabulary=frozenset(), ordinary=frozenset()):
@@ -998,16 +1031,25 @@ def salient_terms(line, vocabulary=frozenset(), ordinary=frozenset()):
     capitalised word mid-sentence, or something carrying a digit or a symbol -
     AWS, PostgreSQL, Kubernetes, C++, CI/CD, Python3.
 
-    Two things a capital letter does not prove. The first word of a sentence
-    is capitalised for being first - "Build data pipelines" asks for
-    pipelines, not for Build - so a leading capital alone does not make the
-    first word of a *sentence* a name. "Docker, Kubernetes, Helm" and
-    "Terraform experience" are not sentences: nothing after the first word is
-    an ordinary lowercase word, so their first word is kept. And a word the
-    posting itself writes in lowercase somewhere is a word however a
-    title-cased line dresses it - "Excellent Problem Solving Skills" asks for
-    nothing called Problem. `ordinary` is that set; `extract` builds it from
-    the posting.
+    Three things a capital letter, or a symbol, does not prove.
+
+    The first word of a sentence is capitalised for being first - "Build data
+    pipelines" asks for pipelines, not for Build, and "Build REST APIs" asks
+    for REST APIs - so when anything but furniture follows the first word, a
+    leading capital alone does not make it a name. A list is not a sentence:
+    "Docker, Kubernetes, Helm" and "Kubernetes and Docker" keep their first
+    word, and so does a name followed only by scaffolding - "Terraform
+    experience", "Kubernetes in production".
+
+    A word the posting itself writes in lowercase somewhere is a word however
+    a title-cased line dresses it - "Excellent Problem Solving Skills" asks
+    for nothing called Problem. `ordinary` is that set; `extract` builds it
+    from the posting.
+
+    A slash joins two names - CI/CD, TCP/IP, REST/gRPC - when a half of the
+    token carries a capital or a digit. Between two lowercase words it is
+    punctuation: "docs/runbooks" and "caching/storage" were each reported as
+    a gap on a real posting, in a line that otherwise named nothing.
 
     `vocabulary` rescues the exception: plenty of real tools are lowercase -
     dbt, npm, kubectl - and would look like ordinary words. A token the
@@ -1022,21 +1064,16 @@ def salient_terms(line, vocabulary=frozenset(), ordinary=frozenset()):
     printed beside the verdict for them to read.
     """
     tokens = words(line)
-    sentence = any(_content(word, vocabulary) for word in tokens[1:])
+    kinds = [_kind(word, vocabulary, ordinary) for word in tokens]
+    sentence = (not _list_head(line, tokens, kinds)
+                and any(kind is not None for kind in kinds[1:]))
     found = []
     seen = set()
-    for position, word in enumerate(tokens):
+    for position, (word, kind) in enumerate(zip(tokens, kinds)):
         key = norm(word)
-        if len(word) < 2 or key in seen:
+        if kind is None or kind == "content" or key in seen:
             continue
-        if key in _NOISE or key in _SCAFFOLDING or key in _SOFT:
-            continue
-        marked = (word.isupper() or any(c.isupper() for c in word[1:])
-                  or any(c.isdigit() or c in "+#/." for c in word)
-                  or key in vocabulary)
-        capital = (word[0].isupper() and key not in ordinary
-                   and not (position == 0 and sentence))
-        if not (marked or capital):
+        if kind == "capital" and position == 0 and sentence:
             continue
         seen.add(key)
         found.append(word)

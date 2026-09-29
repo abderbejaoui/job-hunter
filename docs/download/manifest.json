@@ -6,57 +6,57 @@
   },
   "jobhunt-all": {
     "file": "jobhunt-all.zip",
-    "bytes": 526952,
-    "sha256": "73c978b80fe6a256"
+    "bytes": 532792,
+    "sha256": "6e115f86d9e90886"
   },
   "jobhunt-answer": {
     "file": "jobhunt-answer.zip",
-    "bytes": 51831,
-    "sha256": "29dbbbadbfc33568"
+    "bytes": 52415,
+    "sha256": "c27aecc7329f46e7"
   },
   "jobhunt-critique": {
     "file": "jobhunt-critique.zip",
-    "bytes": 52044,
-    "sha256": "7ea9d27dd394e264"
+    "bytes": 52628,
+    "sha256": "a02ebb11630a65a4"
   },
   "jobhunt-fit": {
     "file": "jobhunt-fit.zip",
-    "bytes": 52463,
-    "sha256": "61f63df7b7b891ea"
+    "bytes": 53047,
+    "sha256": "cdeedd30c0e133b2"
   },
   "jobhunt-letter": {
     "file": "jobhunt-letter.zip",
-    "bytes": 52059,
-    "sha256": "6bc21a5fa2523b2b"
+    "bytes": 52643,
+    "sha256": "f4d5b80db848ead9"
   },
   "jobhunt-outreach": {
     "file": "jobhunt-outreach.zip",
-    "bytes": 52175,
-    "sha256": "208c0087cc069e4a"
+    "bytes": 52759,
+    "sha256": "fed6c2ce082580f4"
   },
   "jobhunt-pdf": {
     "file": "jobhunt-pdf.zip",
-    "bytes": 52978,
-    "sha256": "e68202d8785f1b4d"
+    "bytes": 53562,
+    "sha256": "8f0d77dc740cc77a"
   },
   "jobhunt-posting": {
     "file": "jobhunt-posting.zip",
-    "bytes": 53178,
-    "sha256": "d7216479fd6a3e66"
+    "bytes": 53762,
+    "sha256": "a57044fd8fb4a94e"
   },
   "jobhunt-profile": {
     "file": "jobhunt-profile.zip",
-    "bytes": 53083,
-    "sha256": "f56c353a9e778b13"
+    "bytes": 53667,
+    "sha256": "234415198c20d3ef"
   },
   "jobhunt-review": {
     "file": "jobhunt-review.zip",
-    "bytes": 53012,
-    "sha256": "0e41349808e470ce"
+    "bytes": 53596,
+    "sha256": "7792b6abfb5a6816"
   },
   "jobhunt-tailor": {
     "file": "jobhunt-tailor.zip",
-    "bytes": 52364,
-    "sha256": "38daa3a0c5d46e27"
+    "bytes": 52948,
+    "sha256": "41e57e89e43c6dee"
   }
 }
