@@ -6,8 +6,8 @@
   },
   "jobhunt-all": {
     "file": "jobhunt-all.zip",
-    "bytes": 563167,
-    "sha256": "e33e806d2deb9e8d"
+    "bytes": 563197,
+    "sha256": "80a815be3608c890"
   },
   "jobhunt-answer": {
     "file": "jobhunt-answer.zip",
@@ -26,8 +26,8 @@
   },
   "jobhunt-letter": {
     "file": "jobhunt-letter.zip",
-    "bytes": 55397,
-    "sha256": "67698de5f051783e"
+    "bytes": 55430,
+    "sha256": "dec70fba60c66f47"
   },
   "jobhunt-outreach": {
     "file": "jobhunt-outreach.zip",
@@ -36,8 +36,8 @@
   },
   "jobhunt-pdf": {
     "file": "jobhunt-pdf.zip",
-    "bytes": 56310,
-    "sha256": "6b2f5d886cc01159"
+    "bytes": 56307,
+    "sha256": "81160371a31923bf"
   },
   "jobhunt-posting": {
     "file": "jobhunt-posting.zip",
