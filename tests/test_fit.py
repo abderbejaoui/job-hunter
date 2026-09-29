@@ -181,6 +181,57 @@ def test_the_delta_reads_as_a_sentence(profile):
     assert "OpenStack" in written
 
 
+@pytest.mark.parametrize("line, expected", [
+    ("Build data pipelines in Python", ["Python"]),
+    ("Own the ingestion pipelines", []),
+    ("Design and implement REST APIs", ["REST", "APIs"]),
+    ("Mentor junior engineers", []),
+    # Not sentences: nothing after the first word is an ordinary word, so
+    # the first word is the thing being asked for.
+    ("Terraform experience", ["Terraform"]),
+    ("Docker, Kubernetes, Helm", ["Docker", "Kubernetes", "Helm"]),
+    ("Kubernetes and Docker", ["Kubernetes", "Docker"]),
+    ("Kafka", ["Kafka"]),
+    ("Kubernetes in production", ["Kubernetes"]),
+    ("Deep PostgreSQL knowledge", ["PostgreSQL"]),
+    # The cost, pinned so it is a decision and not a surprise: a tool that
+    # opens a real sentence is missed unless the candidate lists it.
+    ("Kubernetes for container orchestration", []),
+])
+def test_the_first_word_of_a_sentence_is_not_a_name(line, expected):
+    """"Build data pipelines" asks for pipelines. It used to report a gap
+    called Build, and "Own", "Design" and "Mentor" beside it - one per
+    responsibility-shaped requirement line."""
+    assert jobhunt.salient_terms(line) == expected
+
+
+def test_sentence_initial_words_are_not_gaps(profile):
+    job = Job(title="Engineer", requirements=["Build data pipelines in Python",
+                                              "Own the on-call rota"])
+    found = jobhunt.score(job, profile)
+    assert not {"Build", "Own"} & set(found.gaps)
+    assert found.required[0].status == EVIDENCED       # Python, and backed
+    assert found.required[1].status == NOT_CHECKABLE   # nothing named at all
+
+
+def test_a_word_the_posting_writes_in_lowercase_is_not_a_name(profile):
+    """Title-cased requirement lines used to report Problem and Solving as
+    gaps. The posting's own prose says which words are just words."""
+    job = Job(title="Engineer", requirements=["Excellent Problem Solving Skills"],
+              description="You solve whatever problem is in front of you, "
+                          "solving it with the team rather than alone.")
+    found = jobhunt.score(job, profile)
+    assert found.required[0].status == NOT_CHECKABLE
+    assert not found.gaps
+
+
+def test_a_tool_the_candidate_lists_is_a_name_wherever_it_sits(profile):
+    """Airflow is only on one role's skills list, and it opens the line."""
+    job = Job(title="Engineer", requirements=["Airflow experience in production"])
+    found = jobhunt.score(job, profile)
+    assert found.required[0].status == EVIDENCED
+
+
 def test_a_quantity_adjective_is_not_a_requirement(profile):
     """"Significant experience..." asks for experience, not for Significant."""
     wordy = jobhunt.clone(JOB, **{"requirements": [
