@@ -130,7 +130,7 @@ def routes(agent):
         out.append(
             f'<div class="route"><h3><span class="num">{n}</span>'
             f'Inside {e(agent["name"])}<span class="best">easiest</span></h3>'
-            "<p>Paste these at the prompt. You get all twelve, and updates with "
+            f"<p>Paste these at the prompt. You get all {HOW_MANY}, and updates with "
             "one command.</p>"
             + command(f"/plugin marketplace add {REPO}", "marketplace command")
             + command("/plugin install jobhunt@jobhunt", "install command")
@@ -389,7 +389,7 @@ def build():
     <div class="sec-head wide up">
       <span class="kicker">{icon("download-simple")}Install</span>
       <h2>Which agent do you use?</h2>
-      <p>Pick one and copy the command. Every route gives you the same twelve
+      <p>Pick one and copy the command. Every route gives you the same {HOW_MANY}
          skills — there is no paid tier and nothing to sign up for.</p>
     </div>
     <div class="picker up">
@@ -423,7 +423,7 @@ def build():
       <details><summary>Can I just use one skill?</summary>
         <p>Yes. Each folder carries its own copy of the library and imports
         nothing from its siblings, so one installed alone works exactly the
-        same as all twelve.</p></details>
+        same as all {HOW_MANY}.</p></details>
       <details><summary>Will it make my CV good?</summary>
         <p>It will make your CV <b>accurate</b>, and put your strongest
         evidence where a reader meets it. It cannot give you experience you do

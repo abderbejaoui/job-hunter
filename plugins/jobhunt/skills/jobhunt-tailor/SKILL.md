@@ -45,8 +45,7 @@ python3 tailor.py selection.json --run <run>
 
 - **Select and reorder; do not invent.** A reworded bullet must say the same
   thing as the original. Sharpening "Improved performance" into "Cut p99
-  latency 40%" invents a number - and the guard will catch it, which is worse
-  than not writing it.
+  latency 40%" invents a number.
 - **Every figure must already be in the profile.** If the profile says 35%, the
   bullet says 35%.
 - **Drop roles freely.** That is what tailoring is. The tool reports which ones
@@ -63,11 +62,5 @@ python3 tailor.py selection.json --run <run>
 
 ## Exit 2
 
-The document has a blocking problem - usually placeholder text. Fix the JSON
-and run it once more. Do not export it.
-
-## Afterwards
-
-Guard findings print on stderr. Each one is a sentence to read again. They are
-warnings, not errors: the check is lexical, so it occasionally flags something
-legitimate. Relay them; do not silently rewrite around them.
+The document has a blocking problem. Fix the JSON and run it once more. Do not
+export it.

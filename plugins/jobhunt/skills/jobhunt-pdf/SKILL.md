@@ -63,7 +63,4 @@ sendable. Say that rather than treating it as a failure, and **do not write the
 markdown yourself as a workaround**: it is rendered from `cv.yaml`, and writing
 it by hand hands the employers, titles and dates back to you.
 
-**A document with a blocking issue does not become a file.** Unfilled
-placeholder text, a missing name: it exits 2 and names what to fix. That is the
-door where "nothing becomes a PDF until it is fit to send" is actually kept, so
-do not route around it.
+**A document with no name does not become a file.** It exits 2 and says so.

@@ -73,8 +73,7 @@ the new path is printed. Use that path from then on.
   two into one or split one into two.
 - **Keep `required` and `nice_to_have` apart** as the posting divides them.
 - **`language`** is the language the posting is written in, as a two-letter
-  code. The letter is written in it, and the invention guard reads only English
-  and French - it needs to know when it cannot check.
+  code. The letter is written in it.
 - **Do not paraphrase a requirement into something the candidate has.** That is
   the failure this whole tool exists to prevent, and it starts here.
 - `url`, `brand_color` and `fetched_at` are filled in from what was observed.

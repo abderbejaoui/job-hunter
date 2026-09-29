@@ -19,8 +19,7 @@ the critique is written against the documents rather than from memory.
 
 ## What to look for
 
-1. **Claims the profile does not back.** Any open guard finding, and anything
-   in `parroting`. These are the ones that matter - the rest is style.
+1. **Claims the profile does not back.** Anything in `parroting`. These are the ones that matter - the rest is style.
 2. **The opening.** Would a reader keep going after the summary and the first
    two bullets? That is all most get.
 3. **Evidence that is buried.** Something in `regressions`, or a strong bullet

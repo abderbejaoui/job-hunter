@@ -13,10 +13,10 @@ The questions that get lied to. This is built so an honest no is a real answer.
 
 ```bash
 python3 answer.py "Your draft" --question "Do you have experience with Workday?"
-python3 answer.py --file draft.txt --question "..." --run <run> --limit 1000
+python3 answer.py --file draft.txt --question "..." --limit 1000
 ```
 
-`--run` lets the answer name the company and role. `--limit` is the form's
+`--limit` is the form's
 character cap, if it states one - forms cut answers off rather than refuse
 them, and knowing before you paste is better than after.
 
@@ -32,9 +32,7 @@ One sentence of evidence beats a paragraph of adjectives.
 > to be familiar.
 
 That is a better answer than a hedge, and it is the one this tool exists to
-make easy. The guard will flag "Workday" as the question's own term - that
-finding is *expected* on an honest no and is not a reason to remove the word.
-The answer cannot be written without it.
+make easy.
 
 **Never**: "I have some familiarity with", "I have been exposed to", "I am a
 fast learner and would pick it up quickly". Those read as a no that hopes

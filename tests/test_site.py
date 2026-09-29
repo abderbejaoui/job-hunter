@@ -129,10 +129,10 @@ def test_the_all_archive_holds_every_skill():
 def test_a_downloaded_skill_runs(tmp_path):
     """The whole promise of the download route, tested by doing it."""
     import os
-    with zipfile.ZipFile(DOWNLOAD / "jobhunt-guard.zip") as zf:
+    with zipfile.ZipFile(DOWNLOAD / "jobhunt-review.zip") as zf:
         zf.extractall(tmp_path)
     done = subprocess.run(
-        [sys.executable, str(tmp_path / "jobhunt-guard" / "guard.py"), "--help"],
+        [sys.executable, str(tmp_path / "jobhunt-review" / "review.py"), "--help"],
         capture_output=True, text=True, cwd=str(tmp_path),
         env={"PATH": os.environ.get("PATH", ""), "HOME": str(tmp_path)})
     assert done.returncode == 0, done.stderr

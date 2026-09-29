@@ -413,7 +413,6 @@ def yaml_dump(data, indent=0):
 #: values. Someone's email really can have a + and four dots in it.
 _EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]{2,}$")
 _URL = re.compile(r"^https?://\S+$")
-_PLACEHOLDER = re.compile(r"\[.*?\]|^your |^enter |\bTBD\b|\bXXX\b", re.IGNORECASE)
 _SLUG_STRIP = re.compile(r"[^a-z0-9]+")
 _HEX = re.compile(r"^#(?:[0-9a-f]{3}|[0-9a-f]{6})$", re.IGNORECASE)
 
@@ -435,36 +434,6 @@ class Issue:
 
     def __str__(self):
         return f"[{self.severity}] {self.path}: {self.message}"
-
-
-def placeholder_issues(value, path=""):
-    """Every string inside `value` that is still template text, e.g. '[Your Name]'.
-
-    This is the failure that silently reached a real PDF in the tool this one
-    replaces, so it is checked explicitly rather than hoped about - on profiles,
-    and on everything a generator writes.
-    """
-    found = []
-
-    def walk(current, at):
-        if isinstance(current, Issue):
-            return  # diagnostics describe content; they are not content
-        if isinstance(current, str):
-            if current and _PLACEHOLDER.search(current):
-                found.append(Issue(at or "text", BLOCKING,
-                                   f"Unfilled placeholder text: {current[:40]!r}"))
-        elif dataclasses.is_dataclass(current):
-            for f in fields(current):
-                walk(getattr(current, f.name), f"{at}.{f.name}" if at else f.name)
-        elif isinstance(current, dict):
-            for key, item in current.items():
-                walk(item, f"{at}.{key}" if at else str(key))
-        elif isinstance(current, (list, tuple)):
-            for i, item in enumerate(current):
-                walk(item, f"{at}[{i}]")
-
-    walk(value, path)
-    return found
 
 
 def _period(start, end):
@@ -610,8 +579,6 @@ class Profile:
                 issues.append(Issue(f"{where}.bullets", WARNING,
                                     f"No achievements for {role.company or 'this role'} - "
                                     "the tailorer has nothing to work with."))
-
-        issues.extend(placeholder_issues(self))
 
         if not self.skills:
             issues.append(Issue("skills", INFO,
@@ -786,50 +753,12 @@ def save(obj, path):
     return path
 
 
-# --- guard ------------------------------------------------------------------
+# --- words -----------------------------------------------------------------
 #
-# The structural half of the honesty rule is handled by construction: generators
-# return indices into the profile, so employers, dates and degrees are copied and
-# cannot be invented. What a model *can* still slip in is free text - a figure or
-# a tool name inside an otherwise real bullet - and that is what this catches.
-#
-# The check is lexical, not semantic. It compares the words and figures in the
-# output against the words and figures in the profile. It therefore misses a
-# plausible-sounding rewording, and occasionally flags something legitimate. It
-# is a review aid: findings are warnings addressed to the person about to send
-# the document, never a silent rewrite.
+# Tokenising shared by the fit score and the CV review.
 
-#: A word, keeping the punctuation that belongs inside technical names: C++, .NET,
-#: CI/CD. `[^\W\d_]` is "a Unicode letter", so an accented word survives whole -
-#: matching on `A-Za-z` cut "expérience" into "exp" and "rience" and then showed
-#: the user the fragment.
 _LETTERISH = r"(?:[^\W_]|[+#])"
 _WORD = re.compile(r"[^\W\d_]" + _LETTERISH + r"*(?:[./-]" + _LETTERISH + r"+)*")
-
-#: A figure worth checking: 35%, 1,200, 3+, 4.5, 60k, and the French "25 000".
-_FIGURE = re.compile(r"\d{1,3}(?:[   ]\d{3})+|\d[\d,.]*\s?%?\+?[kKmM]?")
-#: Sentence boundaries, so the capitalised first word of a sentence is not read
-#: as a proper noun. "Led migration to Kubernetes" should only ever flag Kubernetes.
-_SENTENCE = re.compile(r"(?<=[.!?;:])\s+|\n+|^", re.MULTILINE)
-
-#: Languages whose capitalisation this can actually read. The proper-noun check
-#: assumes a capitalised word mid-sentence is a name; German capitalises every
-#: noun, so there it reports the entire letter. Rather than bury a correct
-#: document under findings, it says plainly that it could not check the wording.
-CHECKED_LANGUAGES = frozenset({"en", "fr"})
-
-#: Capitalised mid-sentence words that are not claims about the candidate.
-_HARMLESS = frozenset("""
-i a an the and or but of for to in on at by with from as into over under
-i'm i've my me we our their his her its this that these those
-january february march april may june july august september october november december
-monday tuesday wednesday thursday friday saturday sunday
-je tu il elle on nous vous ils elles mon ma mes notre nos votre vos leur leurs
-le la les un une des du au aux et ou mais donc car dans sur avec pour par chez
-ce cet cette ces celui ceux qui que dont ainsi
-janvier février mars avril mai juin juillet août septembre octobre novembre décembre
-lundi mardi mercredi jeudi vendredi samedi dimanche
-""".split())
 
 
 def norm(word):
@@ -848,205 +777,6 @@ def words(text):
     accents, and that behaviour is tested here.
     """
     return [m.group() for m in _WORD.finditer(text)]
-
-
-def _digits(figure):
-    """Fold a figure to the digits of the number it denotes.
-
-    Locale-aware, because the same quantity is written `25,000` in English and
-    `25 000` or `25.000` in French, and a CV written in one language is regularly
-    quoted in a letter written in the other. Comparing the raw characters flagged
-    the candidate's own metric as unverified.
-    """
-    body = re.sub(r"[   ]", "", figure)
-    digits = re.sub(r"[^\d.,]", "", body)
-    if "." in digits and "," in digits:
-        # Whichever comes last is the decimal point; the other grouped thousands.
-        thousands = "," if digits.rfind(".") > digits.rfind(",") else "."
-        digits = digits.replace(thousands, "").replace(",", ".")
-    else:
-        sep = "." if "." in digits else ("," if "," in digits else "")
-        if sep:
-            # One separator, three digits behind it: it grouped thousands, not tenths.
-            head, _, tail = digits.rpartition(sep)
-            digits = (head + tail) if (len(tail) == 3 and head) else digits.replace(sep, ".")
-    return digits.rstrip(".")
-
-
-@dataclass(frozen=True)
-class Support:
-    """The vocabulary a generated document is allowed to draw on."""
-
-    terms: frozenset = frozenset()
-    figures: frozenset = frozenset()
-
-    def __or__(self, other):
-        return Support(self.terms | other.terms, self.figures | other.figures)
-
-    @classmethod
-    def of(cls, *sources):
-        """Build support from records, strings, or any mix of the two."""
-        body = "\n".join(_strings(source) for source in sources)
-        return cls(
-            terms=frozenset(norm(m.group()) for m in _WORD.finditer(body)),
-            figures=frozenset(
-                d for m in _FIGURE.finditer(body) if (d := _digits(m.group()))
-            ),
-        )
-
-    @classmethod
-    def wording_of(cls, *sources):
-        """Support for the words in `sources`, but not for their figures.
-
-        Naming a thing is not claiming it: an answer has to write "Workday" to
-        say it has never used Workday, and that honest no is the answer this
-        package exists to allow. A figure is an assertion wherever it appears,
-        so those are deliberately left unsupported.
-        """
-        return cls(terms=cls.of(*sources).terms)
-
-    def backs_term(self, word):
-        normalised = norm(word)
-        return not normalised or normalised in self.terms
-
-    def backs_figure(self, figure):
-        digits = _digits(figure)
-        return not digits or digits in self.figures
-
-
-def _strings(source):
-    """Every string inside a record, a list, or a string, flattened."""
-    if isinstance(source, str):
-        return source
-    if isinstance(source, Issue):
-        return ""  # diagnostics are not facts: a message must not become support
-    if dataclasses.is_dataclass(source):
-        return "\n".join(_strings(getattr(source, f.name)) for f in fields(source))
-    if isinstance(source, dict):
-        return "\n".join(_strings(item) for item in source.values())
-    if isinstance(source, (list, tuple, set, frozenset)):
-        return "\n".join(_strings(item) for item in source)
-    return ""
-
-
-#: Function words that make a passage English. Used to tell an English document
-#: apart from the posting it was written for - the tailorer writes a CV summary
-#: in English under a French posting, and that summary is checkable.
-_ENGLISH = frozenset("""
-the and of to in with for on at by from as is are was were be been has have had
-i my we our that this these those it its not but or into over under across
-""".split())
-
-
-def _looks_english(body):
-    found = [norm(m.group()) for m in _WORD.finditer(body)]
-    if len(found) < 8:  # too short to tell, and too short to be worth guessing
-        return False
-    return sum(word in _ENGLISH for word in found) / len(found) >= 0.10
-
-
-def reads(body, language=""):
-    """Whether the proper-noun check can read this passage's capitalisation.
-
-    Two signals, because neither alone is right. The posting's language is what
-    the letter and the answers are written in, by instruction - but not the CV
-    summary, which comes back in English however the posting was written. So an
-    unreadable posting language switches the check off only for text that does
-    not itself look English.
-
-    An unnamed language reads as yes: a posting whose language the parser could
-    not name is usually English, and a review aid that quietly switches itself
-    off is worse than one that occasionally over-reports.
-    """
-    if not language or language.strip().lower()[:2] in CHECKED_LANGUAGES:
-        return True
-    return _looks_english(body)
-
-
-def check(body, support, path, asked=None, language="", asked_is="question"):
-    """Every claim in `body` that the support does not back.
-
-    `asked` is the vocabulary of whatever is being answered - a form's question,
-    or the posting a letter replies to. Those words are still unsupported (a
-    "yes, I have used X" must be flagged) but the finding says so differently,
-    because "remove it" is the wrong advice for a word the sentence cannot
-    avoid writing. `asked_is` names that source in the message.
-
-    `language` is the document's own language. Figures are checked whatever it
-    is; the wording check needs `CHECKED_LANGUAGES` to mean anything.
-    """
-    if not body or not body.strip():
-        return []
-
-    issues = []
-    for figure in sorted({m.group().strip() for m in _FIGURE.finditer(body)}):
-        if not support.backs_figure(figure):
-            issues.append(Issue(path, WARNING,
-                                f"The figure {figure!r} is not in your profile - "
-                                "check it before you send this."))
-
-    if not reads(body, language):
-        issues.append(Issue(path, WARNING,
-                            f"This is written in {language!r}, and the wording check only "
-                            "reads English and French - the figures above were checked, the "
-                            "words were not. Read it against your profile yourself."))
-        return issues
-
-    for term in sorted(_unsupported_terms(body, support)):
-        if asked is not None and asked.backs_term(term):
-            message = (f"{term!r} is the {asked_is}'s own term and is not in your "
-                       "profile - check this does not claim it.")
-        else:
-            message = (f"{term!r} does not appear in your profile. Remove it, or add it "
-                       "to your profile if it is true.")
-        issues.append(Issue(path, WARNING, message))
-    return issues
-
-
-def _unsupported_terms(body, support):
-    """Proper nouns and acronyms in the text that the profile never mentions.
-
-    Only words that carry a claim are considered: an acronym anywhere, or a
-    capitalised word that is not merely starting a sentence.
-    """
-    found = set()
-    for sentence in _SENTENCE.split(body):
-        if not sentence or not sentence.strip():
-            continue
-        seen = list(_WORD.finditer(sentence))
-        for position, match in enumerate(seen):
-            word = match.group()
-            if len(word) < 2 or norm(word) in _HARMLESS:
-                continue
-            acronym = word.isupper()
-            proper = word[0].isupper() and position > 0
-            if (acronym or proper) and not support.backs_term(word):
-                found.add(word)
-    return found
-
-
-def check_all(values, support, language="", asked=None, asked_is="question"):
-    """Run `check` over a mapping of path -> string or list of strings.
-
-    An unreadable language would otherwise repeat its one finding once per
-    paragraph, so it is said once for the whole document.
-    """
-    issues = []
-    for path, value in values.items():
-        if isinstance(value, str):
-            issues.extend(check(value, support, path, asked=asked,
-                                language=language, asked_is=asked_is))
-        elif isinstance(value, (list, tuple)):
-            for i, item in enumerate(value):
-                if isinstance(item, str):
-                    issues.extend(check(item, support, f"{path}[{i}]", asked=asked,
-                                        language=language, asked_is=asked_is))
-    if not reads("\n".join(_strings(v) for v in values.values()), language):
-        said = next((i for i in issues if "wording check" in i.message), None)
-        issues = [i for i in issues if "wording check" not in i.message]
-        if said is not None:
-            issues.append(replace(said, path=next(iter(values), "text")))
-    return issues
 
 
 # --- fit --------------------------------------------------------------------
@@ -1366,9 +1096,8 @@ def basis_of(job):
 # but it cannot create one, so a word copied out of the posting finds nothing
 # here. That is what makes measuring fit after tailoring worth anything.
 #
-# `Support.of(job)` must never appear below. A posting asking for Kafka does not
-# license claiming it - the same rule the invention guard keeps, for the same
-# reason.
+# Nothing from the job may count as evidence below. A posting asking for Kafka
+# does not license claiming it.
 
 
 def skills_index(profile):
@@ -1449,22 +1178,14 @@ def _places(profile):
     return places
 
 
-def find(term, profile, support=None):
-    """Every place in the profile that backs `term`, strongest first.
-
-    `support` is an optional pre-built `Support.of(profile)`, used only to skip
-    the search for a word the profile does not contain at all. It is a filter,
-    never the answer: a bag of words cannot say *where* a claim is backed, and a
-    number a candidate cannot trace is not worth printing.
-    """
-    if support is not None and not support.backs_term(term):
-        return []
+def find(term, profile):
+    """Every place in the profile that backs `term`, strongest first."""
     return [Evidence(term=term, where=where, kind=kind, quote=_excerpt(body))
             for where, kind, body in _places(profile) if _mentions(term, body)]
 
 
-def backs(term, profile, support=None):
-    return bool(find(term, profile, support))
+def backs(term, profile):
+    return bool(find(term, profile))
 
 
 def mentions_any(body, terms):
@@ -1515,7 +1236,6 @@ def score(job, profile, document=None, when="before", skim_bullets=SKIM_BULLETS)
     between them - that is a property of the design, not of care.
     """
     document = document if document is not None else profile
-    support = Support.of(profile)
     # A lowercase tool the candidate actually lists - dbt, npm - is a name, not
     # an ordinary word. Nothing here comes from the job: the posting never gets
     # to widen what counts as evidence.
@@ -1530,7 +1250,7 @@ def score(job, profile, document=None, when="before", skim_bullets=SKIM_BULLETS)
 
         backed, missing, evidence = [], [], []
         for term in requirement.terms:
-            hits = find(term, profile, support)
+            hits = find(term, profile)
             if hits:
                 backed.append(term)
                 evidence.append(hits[0])
@@ -1702,9 +1422,6 @@ class CoverLetter:
     @property
     def all_issues(self):
         found = [*self.issues]
-        found.extend(placeholder_issues(self.greeting, "greeting"))
-        found.extend(placeholder_issues(self.paragraphs, "paragraphs"))
-        found.extend(placeholder_issues(self.closing, "closing"))
         if not self.paragraphs:
             found.append(Issue("paragraphs", BLOCKING, "The letter has no body text."))
         if not self.signature:
@@ -1754,13 +1471,6 @@ def tailor(profile, job, data):
         job_slug=job.slug,
     )
 
-    # The company and role may be named in the summary; nothing else new may be.
-    support = Support.of(profile) | Support.of(job.company, job.title)
-    issues.extend(check(summary, support, "summary", language=job.language))
-    for i, role in enumerate(experience):
-        issues.extend(check_all({f"experience[{i}].bullets": role.bullets},
-                                Support.of(profile), language=job.language))
-
     document.issues = issues
     return document
 
@@ -1771,21 +1481,7 @@ def write_letter(profile, job, data):
     greeting = _line(data.get("greeting")) or "Dear Hiring Team,"
     closing = _line(data.get("closing")) or "Kind regards,"
 
-    # A letter may name the company, the role and the place. It may not claim a
-    # skill because the posting asked for one, so requirements are NOT support.
-    support = Support.of(profile) | Support.of(job.company, job.title, job.location,
-                                               profile.personal.full_name)
-    # They are `asked` instead. A good letter names a requirement in order to
-    # be straight about not having it - "I have not built forecasting models in
-    # SQL and Python" - and telling someone to delete the word would turn an
-    # honest sentence into a vague one. The claim is still surfaced; only the
-    # advice changes, because the word is one the sentence cannot avoid.
-    asked = Support.wording_of(job.requirements, job.nice_to_have, job.keywords)
-    # Only the body is guarded. A greeting is a salutation, not a claim, and the
-    # one thing that can go wrong in it - "Dear [Hiring Manager]," - is caught by
-    # the placeholder check instead.
-    issues = check_all({"paragraphs": paragraphs}, support, language=job.language,
-                       asked=asked, asked_is="posting")
+    issues = []
 
     return CoverLetter(
         personal=profile.personal, greeting=greeting, paragraphs=paragraphs,
@@ -3457,13 +3153,7 @@ def plan_outreach(raw, profile, job):
 
     message = build(Message, raw.get("message") or {})
 
-    # The one piece of free text nothing else guards. Same widening as the
-    # letter: the company and the role may be named, the posting's
-    # requirements may not be claimed.
-    support = Support.of(profile) | Support.of(job.company, job.title)
-    issues = [i.message for i in
-              check_all({"note": message.note, "inmail": message.inmail},
-                        support, language=job.language)]
+    issues = []
 
     return Outreach(company=job.company, role=job.title, targets=targets,
                     message=message, issues=issues)

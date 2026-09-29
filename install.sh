@@ -5,7 +5,7 @@
 #   curl -fsSL <raw-url> | sh        from anywhere
 #   ./install.sh --list              show what would be installed, change nothing
 #   ./install.sh --to ~/.claude      install somewhere specific
-#   ./install.sh --only jobhunt-guard,jobhunt-fit
+#   ./install.sh --only jobhunt-review,jobhunt-fit
 #   ./install.sh --uninstall
 #
 # JOBHUNT_SOURCE=/path/to/clone  copies from a checkout you already have
@@ -20,7 +20,7 @@ set -eu
 REPO="mohamedaminehamdi/job-hunter"
 BRANCH="main"
 SKILLS="jobhunt jobhunt-profile jobhunt-review jobhunt-posting jobhunt-fit \
-jobhunt-tailor jobhunt-letter jobhunt-guard jobhunt-answer jobhunt-pdf \
+jobhunt-tailor jobhunt-letter jobhunt-answer jobhunt-pdf \
 jobhunt-outreach jobhunt-critique"
 
 only=""
@@ -227,7 +227,7 @@ while IFS='|' read -r dir label; do
     # Copy beside the target and move into place, so an interrupted install
     # cannot leave half a skill where a working one used to be.
     # ${var:?} on every rm -rf: an empty $dir would otherwise make this
-    # `rm -rf /jobhunt-guard`, and an installer must not be one bad read away
+    # `rm -rf /jobhunt-fit`, and an installer must not be one bad read away
     # from that.
     rm -rf "${dir:?}/.${skill:?}.new"
     cp -R "$source_dir/$skill" "$dir/.$skill.new" \

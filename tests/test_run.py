@@ -219,18 +219,6 @@ def test_a_run_outside_the_runs_directory_is_refused(work):
     assert "not a run directory" in done.stderr
 
 
-def test_a_placeholder_in_the_cv_is_not_exportable(work, profile):
-    run_dir = Path(work) / "jobhunt" / "runs" / "2026-01-01-zeta"
-    run_dir.mkdir(parents=True)
-    jh.save(jh.build(jh.Job, JOB), run_dir / "job.yaml")
-    document = jh.tailor(profile, jh.build(jh.Job, JOB), SELECTION)
-    document.summary = "Data engineer at [Company Name]."
-    jh.save(document, run_dir / "cv.yaml")
-
-    done = run("jobhunt-pdf", run_dir / "cv.yaml", work=work, check=False)
-    assert done.returncode == jh.UNFIT
-    assert "placeholder" in done.stderr.lower()
-    assert not (run_dir / "cv.pdf").exists()
 
 
 def test_a_message_over_linkedins_limit_is_refused(work):

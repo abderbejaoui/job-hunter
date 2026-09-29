@@ -91,7 +91,6 @@ Tell them, in this order:
 
 1. The **fit numbers**, and what moved. If `evidenced` is low, say so plainly -
    that is a real gap and tailoring cannot close it.
-2. Any **guard findings** still open. These are the sentences to read again.
-3. Where the files are, and that **nothing has been sent**.
+2. Where the files are, and that **nothing has been sent**.
 
 Do not congratulate them on a strong application. Tell them what is weak.

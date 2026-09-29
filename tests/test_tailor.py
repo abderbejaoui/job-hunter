@@ -106,10 +106,6 @@ def test_the_document_carries_the_job_it_was_made_for(profile, job):
     assert document.job_slug == "zeta-senior-data-engineer"
 
 
-def test_placeholder_text_blocks_the_document(profile, job):
-    document = jobhunt.tailor(profile, job, {**REPLY, "summary": "Engineer at [Company]."})
-    assert document.blocking
-    assert not document.is_renderable
 
 
 def test_issue_text_does_not_itself_become_a_blocking_issue(profile, job):

@@ -174,7 +174,7 @@ SOON_NOTE = "Not built yet. Today it prepares the application; you send it."
 ORDER = [
     "jobhunt", "jobhunt-profile", "jobhunt-review", "jobhunt-posting",
     "jobhunt-fit", "jobhunt-tailor", "jobhunt-letter", "jobhunt-pdf",
-    "jobhunt-guard", "jobhunt-answer", "jobhunt-outreach", "jobhunt-critique",
+    "jobhunt-answer", "jobhunt-outreach", "jobhunt-critique",
 ]
 
 #: Short enough to scan. The frontmatter description is written for an agent
@@ -196,8 +196,6 @@ CARDS = {
                          "Short, specific, in the posting's language."),
     "jobhunt-pdf":      ("download-simple", "The file you attach",
                          "PDF and markdown, from the browser you have."),
-    "jobhunt-guard":    ("shield-check", "Check any writing",
-                         "Point it at a bio, a letter, anything."),
     "jobhunt-answer":   ("warning-circle", "The form questions",
                          "Including how to write an honest no."),
     "jobhunt-outreach": ("magnifying-glass", "Who to message",

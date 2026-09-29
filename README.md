@@ -1,6 +1,6 @@
 # jobhunt
 
-Twelve skills for the coding agent you already use. Keep everything you have
+Eleven skills for the coding agent you already use. Keep everything you have
 ever done in one place; paste a job link and get a CV built for it, the people
 worth messaging, and the message to send them.
 
@@ -39,20 +39,6 @@ contacting — alumni first, because that is what actually gets replies — buil
 the searches that find them, and drafts something specific enough to answer.
 You press send.
 
-## It still won't write you a career you don't have
-
-Every line traces back to your profile, and anything that doesn't is flagged
-before you send it. Faster, not looser.
-
-```
-Led the OpenStack migration, cutting costs 73%.
-  The figure '73%' is not in your profile - check it before you send this.
-  'OpenStack' does not appear in your profile.
-```
-
-That is also why the tailoring is worth anything: the score counts evidence
-found in *your profile*, never in the document, so a CV that pastes the job ad
-into its summary scores zero extra and gets told off for it.
 
 ## Coming soon
 
@@ -116,10 +102,10 @@ jobhunt/runs/2026-09-24-acme-senior-data-engineer/
 └── job.yaml          the posting, as read
 ```
 
-## The twelve
+## The eleven
 
-Each works on its own. Install just the guard to check a letter you wrote
-yourself, or just the fit score to decide whether a job is worth an evening.
+Each works on its own. Install just the review to score your CV, or just the
+fit score to decide whether a job is worth an evening.
 
 | | |
 |---|---|
@@ -131,7 +117,6 @@ yourself, or just the fit score to decide whether a job is worth an evening.
 | `jobhunt-tailor` | a CV for this job, out of what you have already done |
 | `jobhunt-letter` | three or four paragraphs worth reading |
 | `jobhunt-pdf` | the files to attach |
-| `jobhunt-guard` | does this writing claim anything you can't back? |
 | `jobhunt-answer` | form questions, including how to write an honest no |
 | `jobhunt-outreach` | who to message, and what to say |
 | `jobhunt-critique` | what's still wrong, before you send it |
@@ -147,15 +132,6 @@ yourself, or just the fit score to decide whether a job is worth an evening.
 - **Track your applications**, beyond one line per run in `runs/log.md`. It is
   markdown; type what happened next into it.
 
-## A word on honesty
-
-This makes it easy to produce a polished CV quickly. It does not make it safe
-to send one you haven't read.
-
-Generated text can still contain claims your profile doesn't support. It tries
-hard to surface those — unfilled placeholders block export, the fit score names
-what you cannot back, the critique says what is weak — but the last check is
-yours. Read what you send.
 
 ## When it goes wrong
 
@@ -170,7 +146,7 @@ yours. Read what you send.
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md), and [AGENTS.md](AGENTS.md) for how the
-repo is laid out. `pytest` — 443 tests, on Python 3.9 and up.
+repo is laid out. `pytest` — 444 tests, on Python 3.9 and up.
 
 ## License
 

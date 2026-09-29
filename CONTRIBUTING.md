@@ -60,7 +60,6 @@ stale.
 |---|---|
 | `test_core.py` | what replaced pydantic, Jinja, playwright and pypdf |
 | `test_yaml.py` | the YAML subset, one test per bug pyyaml caught |
-| `test_guard.py` | the invention guard, including what it must *not* flag |
 | `test_fit.py` | the two numbers, and that only one of them can move |
 | `test_run.py` | one whole application, through the scripts as subprocesses |
 | `test_contract.py` | where a SKILL.md and its script have to agree |

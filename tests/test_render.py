@@ -104,7 +104,8 @@ def test_screen_and_print_both_have_page_margins(document):
 
 
 def test_export_refuses_a_blocked_document(profile, job, tmp_path):
-    blocked = render.tailor(profile, job, {**CV_REPLY, "summary": "Engineer at [Company]."})
+    blocked = render.tailor(profile, job, CV_REPLY)
+    blocked.personal = render.Personal()
     with pytest.raises(render.ExportBlocked) as caught:
         render.export(blocked, tmp_path / "cv.pdf")
 
@@ -113,14 +114,6 @@ def test_export_refuses_a_blocked_document(profile, job, tmp_path):
     assert not (tmp_path / "cv.pdf").exists()  # nothing was written
 
 
-def test_export_refuses_a_plain_profile_with_a_placeholder(profile, tmp_path):
-    """A Profile declares no `blocking` list, and must still be checked."""
-    unfinished = profile
-    unfinished.personal.name = "[Your Name]"
-
-    with pytest.raises(render.ExportBlocked):
-        render.export(unfinished, tmp_path / "cv.pdf")
-    assert not (tmp_path / "cv.pdf").exists()
 
 
 def test_export_of_a_clean_document_reaches_the_pdf_step(document, tmp_path,

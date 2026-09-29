@@ -38,10 +38,7 @@ language.
 - **Answer the posting's actual ask**, not its company boilerplate.
 - **Name a gap if there is a real one.** A letter that says "I have not built
   forecasting models in SQL, and would rather say so than have you find out
-  later" is stronger than one that hopes nobody checks. The guard flags those
-  words as the posting's own and tells you to check you are not *claiming*
-  them - that finding is expected on an honest denial, and it is not a reason
-  to delete the sentence.
+  later" is stronger than one that hopes nobody checks.
 - **No flattery about the mission.** Everyone writes that paragraph.
 - **In the posting's language.** An English "Application:" over French prose
   says nobody read this before sending. The date format follows too.
@@ -55,4 +52,4 @@ else must come from the profile.
 
 ## Exit 2
 
-No body text, or placeholder text left in. Fix the JSON and try once more.
+No body text. Fix the JSON and try once more.

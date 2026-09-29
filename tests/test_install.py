@@ -36,11 +36,11 @@ def home(tmp_path):
 # --- it does what it says --------------------------------------------------
 
 def test_it_installs_into_every_agent_it_finds(home):
-    done = run(home, "--only", "jobhunt-guard")
+    done = run(home, "--only", "jobhunt-review")
     assert done.returncode == 0, done.stderr
     for agent in (".claude", ".codex"):
-        assert (home / agent / "skills" / "jobhunt-guard" / "guard.py").exists()
-        assert (home / agent / "skills" / "jobhunt-guard" / "lib" / "jobhunt.py").exists()
+        assert (home / agent / "skills" / "jobhunt-review" / "review.py").exists()
+        assert (home / agent / "skills" / "jobhunt-review" / "lib" / "jobhunt.py").exists()
 
 
 def test_all_eleven_install(home):
@@ -62,15 +62,15 @@ def test_uninstall_removes_only_the_skills(home):
     marker.write_text("not ours")
     assert run(home, "--uninstall").returncode == 0
     assert marker.exists(), "uninstall took something that was not ours"
-    assert not (home / ".claude" / "skills" / "jobhunt-guard").exists()
+    assert not (home / ".claude" / "skills" / "jobhunt-review").exists()
 
 
 def test_reinstalling_replaces_rather_than_merges(home):
     """A file left behind from an older version is worse than a missing one."""
-    run(home, "--only", "jobhunt-guard")
-    stale = home / ".claude" / "skills" / "jobhunt-guard" / "old-helper.py"
+    run(home, "--only", "jobhunt-review")
+    stale = home / ".claude" / "skills" / "jobhunt-review" / "old-helper.py"
     stale.write_text("# from a previous version")
-    run(home, "--only", "jobhunt-guard")
+    run(home, "--only", "jobhunt-review")
     assert not stale.exists()
 
 
@@ -80,7 +80,7 @@ def test_an_unknown_skill_name_is_refused_with_the_list(home):
     done = run(home, "--only", "jobhunt-nope")
     assert done.returncode == 1
     assert "no skill called 'jobhunt-nope'" in done.stderr
-    assert "jobhunt-guard" in done.stderr  # it says what there is
+    assert "jobhunt-review" in done.stderr  # it says what there is
 
 
 def test_no_agent_found_explains_the_project_route(tmp_path):
@@ -96,7 +96,7 @@ def test_a_destination_it_cannot_write_fails_loudly(home, tmp_path):
     locked.mkdir()
     locked.chmod(0o500)
     try:
-        done = run(home, "--to", str(locked / "x"), "--only", "jobhunt-guard")
+        done = run(home, "--to", str(locked / "x"), "--only", "jobhunt-review")
         assert done.returncode != 0, "reported success after failing to install"
     finally:
         locked.chmod(0o700)
@@ -107,9 +107,9 @@ def test_a_destination_it_cannot_write_fails_loudly(home, tmp_path):
 def test_to_installs_into_a_project_directory(home, tmp_path):
     project = tmp_path / "project"
     project.mkdir()
-    done = run(home, "--to", ".cursor", "--only", "jobhunt-guard", cwd=project)
+    done = run(home, "--to", ".cursor", "--only", "jobhunt-review", cwd=project)
     assert done.returncode == 0, done.stderr
-    assert (project / ".cursor" / "skills" / "jobhunt-guard" / "guard.py").exists()
+    assert (project / ".cursor" / "skills" / "jobhunt-review" / "review.py").exists()
     # and it prints somewhere the reader can actually go and look
     assert str(project) in done.stdout
 
@@ -177,7 +177,7 @@ def test_the_command_the_site_gives_cursor_users_works(home, tmp_path):
     project.mkdir()
     done = piped(home, "--to", ".cursor", cwd=project)
     assert done.returncode == 0, done.stderr
-    assert (project / ".cursor" / "skills" / "jobhunt-guard" / "guard.py").exists()
+    assert (project / ".cursor" / "skills" / "jobhunt-review" / "review.py").exists()
 
 
 def test_every_command_the_site_prints_is_one_the_installer_accepts():
@@ -200,7 +200,7 @@ def test_every_command_the_site_prints_is_one_the_installer_accepts():
 
 def test_the_source_override_is_checked_before_it_is_used(home, tmp_path):
     done = subprocess.run(
-        ["sh", str(INSTALL), "--only", "jobhunt-guard"],
+        ["sh", str(INSTALL), "--only", "jobhunt-review"],
         capture_output=True, text=True, cwd=str(ROOT),
         env={"PATH": os.environ.get("PATH", ""), "HOME": str(home), "NO_COLOR": "1",
              "JOBHUNT_SOURCE": str(tmp_path / "not-a-clone")})

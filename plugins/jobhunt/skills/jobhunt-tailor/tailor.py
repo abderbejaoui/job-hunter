@@ -5,9 +5,6 @@ The agent never writes an employer, a job title, a date, a degree or a
 certification. It answers with *indices* into the profile and reworded bullet
 text, and everything else is copied across here - so a fabricated employer is
 not something caught afterwards, it cannot be expressed.
-
-What is left is free text: a summary and reworded bullets. Those go through the
-invention guard, word by word, against the profile.
 """
 
 import argparse

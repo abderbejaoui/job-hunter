@@ -2,7 +2,6 @@ from pathlib import Path
 
 from jobhunt import (
     BLOCKING,
-    Education,
     Personal,
     Profile,
     Role,
@@ -34,24 +33,8 @@ def test_complete_profile_is_renderable():
     assert p.is_renderable, p.report()
 
 
-def test_placeholder_text_blocks_rendering():
-    """The failure mode that reached a real PDF in the predecessor tool."""
-    p = Profile(
-        personal=Personal(name="[Your Name]", surname="Hamdi", email="a@b.co"),
-        experience=[Role(position="Engineer", company="Acme", bullets=["Did work."])],
-    )
-    assert not p.is_renderable
-    assert any("placeholder" in i.message.lower() for i in p.report())
 
 
-def test_placeholder_found_in_nested_list():
-    p = Profile(
-        personal=Personal(name="Ada", surname="L", email="a@b.co"),
-        education=[Education(institution="INSAT", courses=["[Grade]"])],
-        experience=[Role(position="E", company="C", bullets=["Real work."])],
-    )
-    assert not p.is_renderable
-    assert any(i.path.startswith("education[0].courses") for i in p.report())
 
 
 def test_bad_email_warns_but_does_not_block():
