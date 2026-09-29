@@ -942,6 +942,8 @@ skill background track record hands-on plus bonus ideally preferably must have
 has having is are be been you your we our team environment able comfortable
 significant substantial extensive considerable relevant appropriate suitable
 equivalent similar related various several multiple broad wide
+advanced intermediate basic fluent native professional level minimum required
+mandatory preferred desirable essential production
 demonstrated ausgezeichnete gute kenntnisse erfahrung jahre sowie expérience
 connaissance solide maîtrise ans bonne
 """.split())
@@ -978,38 +980,78 @@ _YEARS = re.compile(
 _PRESENT = frozenset("present now current ongoing today heute aujourd'hui actuel".split())
 
 
-def salient_terms(line, vocabulary=frozenset()):
+def _content(word, vocabulary):
+    """A lowercase word that is neither furniture nor a tool the candidate
+    lists - the kind that makes a line a sentence rather than a list of names."""
+    key = norm(word)
+    return (len(word) > 1 and word[0].islower() and key not in vocabulary
+            and key not in _NOISE and key not in _SCAFFOLDING and key not in _SOFT)
+
+
+def salient_terms(line, vocabulary=frozenset(), ordinary=frozenset()):
     """The concrete things a requirement line asks for, in order, deduplicated.
 
     Precision over recall, deliberately. A term is kept when it looks like a
-    *name* rather than a word: an acronym, a capitalised word, or something
-    carrying a digit or a symbol - AWS, Kubernetes, C++, CI/CD, Python3.
+    *name* rather than a word: an acronym, a word with a capital inside it, a
+    capitalised word mid-sentence, or something carrying a digit or a symbol -
+    AWS, PostgreSQL, Kubernetes, C++, CI/CD, Python3.
+
+    Two things a capital letter does not prove. The first word of a sentence
+    is capitalised for being first - "Build data pipelines" asks for
+    pipelines, not for Build - so a leading capital alone does not make the
+    first word of a *sentence* a name. "Docker, Kubernetes, Helm" and
+    "Terraform experience" are not sentences: nothing after the first word is
+    an ordinary lowercase word, so their first word is kept. And a word the
+    posting itself writes in lowercase somewhere is a word however a
+    title-cased line dresses it - "Excellent Problem Solving Skills" asks for
+    nothing called Problem. `ordinary` is that set; `extract` builds it from
+    the posting.
 
     `vocabulary` rescues the exception: plenty of real tools are lowercase -
     dbt, npm, kubectl - and would look like ordinary words. A token the
-    candidate lists among their own skills is a name whatever its case.
+    candidate lists among their own skills is a name whatever its case and
+    wherever it sits in the line.
 
     The cost is that a lowercase tool the candidate does *not* have is missed
-    here. That is the right trade: a wrongly reported gap - telling someone they
-    lack "production" - is worse than a quiet omission, because the
-    requirement's own sentence is printed beside the verdict for them to read.
+    here, and so is one that opens a sentence - "Kubernetes for container
+    orchestration" - when it is not among their skills. That is the right
+    trade: a wrongly reported gap - telling someone they lack "Build" - is
+    worse than a quiet omission, because the requirement's own sentence is
+    printed beside the verdict for them to read.
     """
+    tokens = words(line)
+    sentence = any(_content(word, vocabulary) for word in tokens[1:])
     found = []
     seen = set()
-    for word in words(line):
+    for position, word in enumerate(tokens):
         key = norm(word)
         if len(word) < 2 or key in seen:
             continue
         if key in _NOISE or key in _SCAFFOLDING or key in _SOFT:
             continue
-        named = (word.isupper() or word[0].isupper()
-                 or any(c.isdigit() or c in "+#/." for c in word)
-                 or key in vocabulary)
-        if not named:
+        marked = (word.isupper() or any(c.isupper() for c in word[1:])
+                  or any(c.isdigit() or c in "+#/." for c in word)
+                  or key in vocabulary)
+        capital = (word[0].isupper() and key not in ordinary
+                   and not (position == 0 and sentence))
+        if not (marked or capital):
             continue
         seen.add(key)
         found.append(word)
     return found
+
+
+def ordinary_words(job):
+    """Words the posting writes in lowercase somewhere.
+
+    A capital on one of them elsewhere is a sentence start or title case, not
+    a name: the "Build" opening a requirement is the same build as the "build
+    and run" in the description. Nothing here widens what counts as evidence -
+    it only narrows what counts as a requirement.
+    """
+    body = "\n".join([job.description, job.source_text, *job.requirements,
+                       *job.responsibilities, *job.nice_to_have])
+    return frozenset(norm(word) for word in words(body) if word[0].islower())
 
 
 def years_required(line):
@@ -1073,9 +1115,10 @@ def extract(job, vocabulary=frozenset()):
     if not stated and job.keywords:
         stated = [(word, "required") for word in job.keywords]
 
+    ordinary = ordinary_words(job)
     found = []
     for line, kind in stated:
-        terms = salient_terms(line, vocabulary)
+        terms = salient_terms(line, vocabulary, ordinary)
         found.append(Requirement(
             text=line.strip(), kind=kind, terms=terms,
             why=("" if terms else
