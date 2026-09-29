@@ -217,11 +217,58 @@ def test_the_first_word_of_a_sentence_is_not_a_name(line, expected):
     ("Experience with service mesh patterns (e.g., Istio mTLS)", ["Istio", "mTLS"]),
     # A slash between names still joins them.
     ("CI/CD and TCP/IP experience", ["CI/CD", "TCP/IP"]),
-    ("Build REST/gRPC APIs", ["REST/gRPC", "APIs"]),
+    ("Build REST/gRPC APIs", ["REST", "gRPC", "APIs"]),
     ("Node.js, .NET or C#", ["Node.js", "NET", "C#"]),
 ])
 def test_a_slash_between_two_words_is_punctuation_not_a_name(line, expected):
     assert jobhunt.salient_terms(line) == expected
+
+
+@pytest.mark.parametrize("line, expected", [
+    # All found on live internship postings, run against a real CV. Each of
+    # the capitalised words below was reported as a gap.
+    ("Available for a Summer 2027 internship (May/June start dates)", []),
+    ("Available to complete a 6-month internship beginning in February, March, "
+     "April, May, or June 2027", []),
+    ("Ability to commit to a full-time (40 hours/week Monday - Friday) for a "
+     "minimum 12 week internship", []),
+    ("A graduation date in Fall 2027 or Spring 2028 with a Bachelor's degree",
+     ["Bachelor"]),
+    # Joined words are judged apart, so a Software Engineering degree can
+    # back this line, and AI can back the next.
+    ("Previous Computer Science/Software Engineering internship experience",
+     ["Computer", "Science", "Software", "Engineering"]),
+    ("Excited to use AI-assisted tools to enhance software development", ["AI"]),
+    ("Systems programming in C/C++ or Rust", ["C++", "Rust"]),
+])
+def test_calendar_words_and_joined_words_are_not_names(line, expected):
+    assert jobhunt.salient_terms(line) == expected
+
+
+def test_the_postings_own_company_and_location_are_not_requirements(profile):
+    """"In office in Austin, TX" says where the job is; nothing in a profile
+    backs a city, and the report called it a gap."""
+    job = Job(title="Software Engineer Intern", company="Cloudflare",
+              location="Austin, US",
+              requirements=["In office 3-5 days a week in Austin, TX.",
+                            "Experience with Cloudflare Workers."])
+    found = jobhunt.score(job, profile)
+    assert "Austin" not in found.gaps
+    assert "Cloudflare" not in found.gaps
+    assert "Workers" in found.gaps          # the product is still asked for
+
+
+def test_a_calendar_word_in_the_summary_is_not_parroting(profile):
+    """Writing "Summer 2027" in a CV summary tripped the parroting wire,
+    because the posting asked for a Summer internship and no profile
+    contains the word."""
+    job = Job(title="Intern", company="Scale AI",
+              requirements=["Available for a Summer 2027 internship"])
+    document = jobhunt.tailor(profile, job, {"summary": "Applying for Summer 2027.",
+                                             "roles": [{"index": 0}], "projects": [],
+                                             "skills": []})
+    found = jobhunt.score(job, profile, document, when="after")
+    assert not found.parroting
 
 
 def test_sentence_initial_words_are_not_gaps(profile):
