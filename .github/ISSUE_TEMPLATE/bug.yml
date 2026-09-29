@@ -1,0 +1,20 @@
+name: Something is broken
+description: A skill fails, gives a wrong result, or the site misbehaves.
+labels: [bug]
+body:
+  - type: textarea
+    attributes:
+      label: What happened
+      description: What you ran, and what came back. Paste the error if there was one.
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: What you expected
+  - type: input
+    attributes:
+      label: Your setup
+      description: Agent (Claude Code, Codex, Cursor...), OS, and `python3 --version`.
+  - type: markdown
+    attributes:
+      value: "**Do not paste your CV or profile.** Remove names, emails and phone numbers from anything you share."

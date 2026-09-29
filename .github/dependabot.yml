@@ -1,0 +1,8 @@
+# The skills are stdlib-only, so the only dependencies to keep current are the
+# GitHub Actions the workflows use.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly

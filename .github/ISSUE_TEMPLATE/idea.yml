@@ -1,0 +1,13 @@
+name: An idea
+description: Something it should do, or do differently.
+labels: [enhancement]
+body:
+  - type: textarea
+    attributes:
+      label: What you want to be able to do
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Why
+      description: The situation where you needed it.

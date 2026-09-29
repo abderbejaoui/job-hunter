@@ -13,6 +13,21 @@ There is nothing to `pip install .` — no package, no `[project]` table. The
 skills are copied, not packaged, and standard library only. That is the
 product, not an aesthetic.
 
+## How a change gets in
+
+Nobody pushes to `main`, the maintainer included. Every change is a pull
+request from a branch:
+
+1. Fork, or branch if you have access: `git switch -c fix/short-name`
+2. Push the branch and open a pull request against `main`.
+3. CI has to pass - tests on macOS and Linux, Python 3.9 and 3.13, lint, and
+   the check that nothing private is tracked.
+4. The maintainer reviews it (see `.github/CODEOWNERS`) and squash-merges it.
+
+Force-pushing `main` and deleting it are blocked outright.
+
+Found a security problem? See [SECURITY.md](SECURITY.md) - not a public issue.
+
 ## The two rules that are not obvious
 
 **`core/jobhunt.py` is the only place to edit the library.** The eleven
