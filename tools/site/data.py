@@ -134,19 +134,61 @@ OUTREACH_NOTE = "It never logs in and never sends. You press send."
 
 # --- how it works ------------------------------------------------------------
 
-STEPS = [
-    {"icon": "file-text", "title": "Drop your CV in, once",
-     "body": "It becomes one profile you check and approve. Every application "
-             "after that is built from it, so you never retype your history."},
-    {"icon": "link-simple", "title": "Paste a job link",
-     "body": "Opened in your own browser, so you get the real description and "
-             "not a loading spinner. Any board, any URL."},
-    {"icon": "cursor-click", "title": "Get the CV and the letter",
-     "body": "Built for that posting out of your own work, as PDF and markdown, "
-             "in a folder for that job."},
-    {"icon": "paper-plane-tilt", "title": "Get who to message, and what to say",
-     "body": "The people worth contacting, the searches that find them, and a "
-             "draft specific enough to answer."},
+#: The workflow, stage by stage, each named for the skill that does it and
+#: each with a small demo that plays when its step lights up. One posting all
+#: the way through - the same Zeta role as the CV comparison above - so the
+#: page tells one story rather than six unrelated ones.
+FLOW_TITLE = "From a job link to a message worth sending."
+FLOW_SUB = "Six steps, one skill each. You paste the link; it does the rest."
+
+FLOW = [
+    {"kind": "link", "icon": "link-simple", "skill": "jobhunt-posting",
+     "title": "Paste a job link",
+     "body": "Any board, any URL. It reads the posting in your own browser and "
+             "pulls out what the job actually asks for.",
+     "url": "jobs.zeta.io/careers/senior-data-engineer",
+     "facts": ["Senior Data Engineer", "Zeta", "Berlin"],
+     "asks": ["dbt", "Airflow", "SQL", "Ingestion", "Kafka"]},
+    {"kind": "score", "icon": "gauge", "skill": "jobhunt-fit",
+     "title": "Score your CV against it",
+     "body": "Every requirement, checked against your own work. What backs it, "
+             "and what is a real gap - before you spend an evening on it.",
+     "checks": [("dbt", True), ("Airflow", True), ("SQL", True),
+                ("Ingestion", True), ("Kafka", False)]},
+    {"kind": "rewrite", "icon": "file-text", "skill": "jobhunt-tailor",
+     "title": "Rewrite the CV for this job",
+     "body": "Your strongest lines for this posting move to the top, where a "
+             "reader actually gets to them. Same facts, better order."},
+    {"kind": "people", "icon": "user-circle", "skill": "jobhunt-outreach",
+     "title": "Find the people to reach out to",
+     "body": "Alumni first, because they answer. Then the likely hiring manager "
+             "and the recruiter - with the LinkedIn searches that find them.",
+     "people": [("LK", "Lena K.", "Data Engineer at Zeta", "Alumni · TU Berlin", True),
+                ("MS", "Marco S.", "Head of Data", "Hiring manager", False),
+                ("AR", "Aylin R.", "Talent Partner", "Recruiter", False)],
+     "search": 'site:linkedin.com/in "Zeta" "TU Berlin" data'},
+    {"kind": "email", "icon": "paper-plane-tilt", "skill": "jobhunt-outreach",
+     "title": "Write the message",
+     "body": "A note short enough to be read, specific enough to be answered. "
+             "It mentions the thing you share, not a template.",
+     "to": "Lena K. · Alumni",
+     "message": "Hi Lena - fellow TU Berlin grad here. I rewrote a dbt warehouse "
+                "and cut ETL runtime 35%, and saw Zeta is hiring a data engineer. "
+                "Would you have 10 minutes to tell me what the team is like?"},
+    {"kind": "letter", "icon": "folder-simple", "skill": "jobhunt-letter · jobhunt-pdf",
+     "title": "Get the cover letter and the PDFs",
+     "body": "A letter in the posting's language, and the files to attach - "
+             "all in one folder for this job. Nothing is sent without you.",
+     "files": ["cv.pdf", "letter.pdf", "outreach.md", "fit.md"]},
+]
+
+#: The rest of the kit - the parts that are not one stage of the flow.
+ALSO = [
+    ("jobhunt", "All six steps, in order, from one sentence"),
+    ("jobhunt-profile", "Your CV, read once into one file"),
+    ("jobhunt-review", "Score your CV with no job at all"),
+    ("jobhunt-answer", "Application form questions"),
+    ("jobhunt-critique", "What is still weak, before you send"),
 ]
 
 #: It will not write you a career you do not have. No longer the headline,

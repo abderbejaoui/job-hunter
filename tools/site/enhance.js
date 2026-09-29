@@ -19,7 +19,13 @@ const fine = window.matchMedia("(pointer: fine)").matches;
 
 if (!still) {
   motionLayer().catch(() => {});
-  whenIdle(() => sheets().catch(() => {}));
+  // The same drift wherever the page turns green: the hero, and the
+  // outreach band further down. Each scene pauses while it is off screen.
+  whenIdle(() => {
+    for (const host of document.querySelectorAll(".field, .band")) {
+      sheets(host).catch(() => {});
+    }
+  });
 }
 
 function whenIdle(run) {
@@ -58,7 +64,7 @@ async function motionLayer() {
   // The two CVs lean toward the pointer. Tilt only where there is a real
   // pointer: on a phone this would fire on scroll-touches and read as jitter.
   if (fine) {
-    for (const card of document.querySelectorAll(".cv")) {
+    for (const card of document.querySelectorAll(".cv, .demo")) {
       card.style.transformStyle = "preserve-3d";
       card.addEventListener("pointermove", (ev) => {
         const box = card.getBoundingClientRect();
@@ -84,7 +90,7 @@ async function motionLayer() {
       btn.addEventListener("pointerup", () => animate(btn, { scale: 1 }, snappy));
     }
 
-    for (const chip of document.querySelectorAll(".board")) {
+    for (const chip of document.querySelectorAll(".board, .also li, .soon-card")) {
       chip.addEventListener("pointerenter", () =>
         animate(chip, { y: -4, scale: 1.05 }, snappy));
       chip.addEventListener("pointerleave", () =>
@@ -102,8 +108,7 @@ async function motionLayer() {
 
 // --- three.js: the same CV, over and over ------------------------------------
 
-async function sheets() {
-  const field = document.querySelector(".field");
+async function sheets(field) {
   if (!field || !webgl()) return;
   const T = await import(THREE);
 
@@ -129,7 +134,10 @@ async function sheets() {
     map, transparent: true, opacity: 0.16, side: T.DoubleSide, depthWrite: false,
   });
   const small = window.innerWidth < 760;
-  const count = small ? 26 : 56;
+  // The hero gets the full stream; a band further down gets half, because
+  // it has a diagram of its own to be read.
+  const hero = field.classList.contains("field");
+  const count = (small ? 26 : 56) >> (hero ? 0 : 1);
   const mesh = new T.InstancedMesh(new T.PlaneGeometry(0.78, 1.1), material, count);
   scene.add(mesh);
 

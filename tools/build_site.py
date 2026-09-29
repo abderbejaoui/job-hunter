@@ -180,6 +180,72 @@ HOW_MANY = _WORDS[len(data.read_skills())]
 HIDDEN = ' aria-hidden="true"' 
 
 
+def demo(stage):
+    """The little live panel beside one step of the workflow.
+
+    Every panel is written in its *finished* state. The script and the
+    stylesheet run it backwards to the start and play it forward when the step
+    lights up - so with no script, or with reduced motion, a visitor simply
+    sees the result, never an empty box.
+    """
+    kind = stage["kind"]
+    if kind == "link":
+        facts = "".join(f'<span class="chip" style="--i:{i}">{e(f)}</span>'
+                        for i, f in enumerate(stage["facts"]))
+        asks = "".join(f'<span class="chip ask" style="--i:{i + 3}">{e(a)}</span>'
+                       for i, a in enumerate(stage["asks"]))
+        body = (f'<div class="url">{icon("link-simple")}'
+                f'<span class="typed" data-text="{e(stage["url"])}">{e(stage["url"])}</span></div>'
+                f'<div class="chips">{facts}</div>'
+                f'<div class="label">It asks for</div><div class="chips">{asks}</div>')
+    elif kind == "score":
+        rows = "".join(
+            f'<li class="{"hit" if ok else "gap"}" style="--i:{i}">'
+            f'{icon("check" if ok else "warning-circle")}<span>{e(name)}</span>'
+            f'<em>{"in your work" if ok else "a real gap"}</em></li>'
+            for i, (name, ok) in enumerate(stage["checks"]))
+        hits = sum(1 for _, ok in stage["checks"] if ok)
+        total = len(stage["checks"])
+        body = (f'<div class="score"><b>{hits}<small>/{total}</small></b>'
+                f'<span>requirements backed by your own work</span></div>'
+                f'<div class="meter-line" style="--fill:{round(100 * hits / total)}%"><i></i></div>'
+                f'<ul class="checks">{rows}</ul>')
+    elif kind == "rewrite":
+        # Five lines as the one CV has them, and where tailoring puts them.
+        shown = [3, 4, 5, 0, 1]
+        after = sorted(shown, key=lambda i: (not data.POOL[i][1], i))
+        rows = "".join(
+            f'<li class="{"strong" if data.POOL[i][1] else ""}" '
+            f'style="--from:{n};--to:{after.index(i)}">{e(data.POOL[i][0])}</li>'
+            for n, i in enumerate(shown))
+        body = (f'<ol class="lines" style="--rows:{len(shown)}">{rows}</ol>'
+                '<div class="fold"><span>most readers stop about here</span></div>')
+    elif kind == "people":
+        rows = "".join(
+            f'<li class="{"best" if best else ""}" style="--i:{i}">'
+            f'<span class="face">{e(ini)}</span>'
+            f'<span class="who"><b>{e(name)}</b><small>{e(role)}</small></span>'
+            f'<span class="tag">{e(tag)}</span></li>'
+            for i, (ini, name, role, tag, best) in enumerate(stage["people"]))
+        body = (f'<ul class="people">{rows}</ul>'
+                f'<div class="query">{icon("magnifying-glass")}'
+                f'<code>{e(stage["search"])}</code></div>')
+    elif kind == "email":
+        body = (f'<div class="to">To <b>{e(stage["to"])}</b></div>'
+                f'<p class="msg"><span class="typed" data-text="{e(stage["message"])}">'
+                f'{e(stage["message"])}</span></p>')
+    elif kind == "letter":
+        bars = "".join(f'<i style="--i:{i};--w:{w}%"></i>'
+                       for i, w in enumerate((42, 96, 88, 93, 70, 95, 84, 58)))
+        files = "".join(f'<span class="file" style="--i:{i}">{icon("file-text")}{e(f)}</span>'
+                        for i, f in enumerate(stage["files"]))
+        body = f'<div class="paper">{bars}</div><div class="files">{files}</div>'
+    else:
+        raise ValueError(kind)
+    extra = " demo-rewrite" if kind == "rewrite" else ""
+    return f'<div class="demo glass{extra}" aria-hidden="true">{body}</div>'
+
+
 def build():
     css = (SITE / "style.css").read_text(encoding="utf-8")
     js = (SITE / "app.js").read_text(encoding="utf-8")
@@ -214,9 +280,12 @@ def build():
 
     steps = "".join(
         f'<div class="step"><div class="badge">{icon(s["icon"])}</div>'
-        f'<div><span class="n">STEP {i + 1}</span><h3>{e(s["title"])}</h3>'
-        f'<p>{e(s["body"])}</p></div></div>'
-        for i, s in enumerate(data.STEPS))
+        f'<div class="say"><span class="n">STEP {i + 1}'
+        f'<span class="skill">{e(s["skill"])}</span></span>'
+        f'<h3>{e(s["title"])}</h3><p>{e(s["body"])}</p></div>{demo(s)}</div>'
+        for i, s in enumerate(data.FLOW))
+    also = "".join(f'<li><code>{e(name)}</code><span>{e(what)}</span></li>'
+                   for name, what in data.ALSO)
 
     agent_buttons = []
     for group, label in (("global", "Installs everywhere"),
@@ -345,11 +414,16 @@ def build():
   <div class="wrap">
     <div class="sec-head wide up">
       <span class="kicker">{icon("cursor-click")}How it works</span>
-      <h2>You bring the link. It brings the evidence.</h2>
+      <h2>{e(data.FLOW_TITLE)}</h2>
+      <p>{e(data.FLOW_SUB)}</p>
     </div>
     <div class="steps">
       <div class="rail"><i></i></div>
       {steps}
+    </div>
+    <div class="also up">
+      <span class="label">Also in the kit</span>
+      <ul>{also}</ul>
     </div>
   </div>
 </section>

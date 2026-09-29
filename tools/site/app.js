@@ -113,6 +113,9 @@
         if (!entry.isIntersecting) return;
         entry.target.classList.add("in");
         watcher.unobserve(entry.target);
+        if (entry.target.classList.contains("sec-head")) {
+          typeHeading(entry.target.querySelector("h2"));
+        }
         if (entry.target.classList.contains("proof")) fillScore();
       });
     }, { rootMargin: "0px 0px -10% 0px", threshold: 0.1 });
@@ -205,6 +208,49 @@
     }
   }
 
+  // --- typing, anywhere -----------------------------------------------------
+  // The hero's typing, reused. Types `whole` into `el` one character at a
+  // time; a later call on the same element cancels the earlier one, so a step
+  // that lights, dims and lights again restarts cleanly instead of two loops
+  // writing over each other.
+  function typeInto(el, whole, speed) {
+    var token = (el.__typing || 0) + 1;
+    el.__typing = token;
+    var cut = 0;
+    el.textContent = "";
+    el.classList.add("typing");
+    (function next() {
+      if (el.__typing !== token) return;
+      cut += 1;
+      el.textContent = whole.slice(0, cut);
+      if (cut < whole.length) setTimeout(next, speed);
+      else el.classList.remove("typing");
+    })();
+  }
+
+  // Headings type themselves in as their section arrives. The untyped part is
+  // still there, only transparent, so the line never reflows under the
+  // reader and a screen reader gets the whole heading at once.
+  function typeHeading(h) {
+    if (!h || h.__typed) return;
+    h.__typed = true;
+    var whole = h.textContent;
+    var shown = document.createElement("span");
+    var rest = document.createElement("span");
+    rest.className = "untyped";
+    h.textContent = "";
+    h.appendChild(shown);
+    h.appendChild(rest);
+    var cut = 0;
+    rest.textContent = whole;
+    (function next() {
+      cut += 1;
+      shown.textContent = whole.slice(0, cut);
+      rest.textContent = whole.slice(cut);
+      if (cut < whole.length) setTimeout(next, 26);
+    })();
+  }
+
   // --- the rail -----------------------------------------------------------
   // One continuous fill down the steps as you scroll past them, and each badge
   // lights as the fill reaches it. Cheaper than four separate observers, and
@@ -229,9 +275,25 @@
       var reached = box.top + box.height * fraction;
       badges.forEach(function (step) {
         var at = step.getBoundingClientRect();
-        step.classList.toggle("lit", reached >= at.top + at.height / 2);
+        // Lit once its upper third reaches the line, not its middle: a step
+        // is tall now that it carries a demo, and waiting for the middle
+        // meant the demo started after the reader was already looking at it.
+        var now = reached >= at.top + Math.min(at.height * 0.33, 140);
+        if (now && !step.classList.contains("lit")) play(step);
+        step.classList.toggle("lit", now);
       });
     };
+    // Each demo's typed text starts empty and types when its step lights;
+    // the rest of the demo is driven by the `.lit` class in the stylesheet.
+    var play = function (step) {
+      Array.prototype.forEach.call(step.querySelectorAll(".typed"), function (el) {
+        typeInto(el, el.getAttribute("data-text") || "",
+                 el.closest(".msg") ? 16 : 32);
+      });
+    };
+    Array.prototype.forEach.call(steps.querySelectorAll(".typed"), function (el) {
+      el.textContent = "";
+    });
     draw();
     window.addEventListener("scroll", draw, { passive: true });
     window.addEventListener("resize", draw, { passive: true });

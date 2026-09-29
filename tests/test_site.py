@@ -231,7 +231,9 @@ def test_every_colour_the_page_asks_for_is_defined(page):
     root = css.split(":root {", 1)[1].split("\n}", 1)[0]
     defined = set(re.findall(r"(--[a-z-]+)\s*:", root))
     asked = set(re.findall(r"var\((--[a-z-]+)", css))
-    local = {"--fill", "--copies"}          # set on the elements themselves
+    # set on the elements themselves, as layout rather than colour
+    local = {"--fill", "--copies", "--i", "--w", "--row", "--rows", "--pos",
+             "--from", "--to"}
     assert asked - defined <= local, asked - defined - local
 
 
@@ -562,9 +564,10 @@ def test_the_two_cvs_are_right_without_any_script(page):
     for cv in (data.GENERIC, data.TAILORED):
         _, hits, total = data.cv_lines(cv)
         want.append((str(hits), str(total)))
-    assert re.findall(r"<b>(\d+)<small>/(\d+)</small></b>", page) == want
+    pair = page.split('<div class="pair">', 1)[1].split('<p class="versus-foot">', 1)[0]
+    assert re.findall(r"<b>(\d+)<small>/(\d+)</small></b>", pair) == want
 
-    fills = [int(n) for n in re.findall(r"--fill:(\d+)%", page)]
+    fills = [int(n) for n in re.findall(r"--fill:(\d+)%", pair)]
     assert fills == [round(100 * int(h) / int(t)) for h, t in want], fills
     assert "@keyframes grow" in page, "the bars have no animation of their own"
 
@@ -598,7 +601,9 @@ def test_the_rail_fills_as_you_scroll_the_steps(moving):
                          ("railAbove", "railInto", "railPast"))
     assert above[0] < into[0] < past[0], f"the rail does not fill: {moving}"
     assert above[1] <= into[1] < past[1], f"the badges do not light: {moving}"
-    assert past == (100.0, 4), f"it never completes: {moving}"
+    sys.path.insert(0, str(ROOT / "tools" / "site"))
+    import data
+    assert past == (100.0, len(data.FLOW)), f"it never completes: {moving}"
 
 
 def test_the_install_routes_are_readable_without_javascript(moving):
@@ -623,7 +628,9 @@ def test_reduced_motion_still_shows_the_whole_page(stilled):
     assert stilled["reduced"] == "true", "the flag did not take"
     for part in ("hero-h1", "hero-cta", "hero-eyebrow", "hero-slider"):
         assert stilled[part] == "1", f"{part} is invisible"
-    assert pair(stilled["railPast"])[1] == 4, "the steps never light"
+    sys.path.insert(0, str(ROOT / "tools" / "site"))
+    import data
+    assert pair(stilled["railPast"])[1] == len(data.FLOW), "the steps never light"
 
 
 # --- the boards strip -------------------------------------------------------
