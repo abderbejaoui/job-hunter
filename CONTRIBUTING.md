@@ -30,7 +30,7 @@ Found a security problem? See [SECURITY.md](SECURITY.md) - not a public issue.
 
 ## The two rules that are not obvious
 
-**`core/jobhunt.py` is the only place to edit the library.** The eleven
+**`core/jobhunt.py` is the only place to edit the library.** Every
 `plugins/jobhunt/skills/*/lib/jobhunt.py` are generated from it by
 `python tools/sync.py`, and a test fails if one has drifted. The duplication is
 deliberate: skills are installed one at a time, and a skill importing from a
