@@ -103,6 +103,8 @@ has each skill as its own zip too.
 **What it needs:** Python 3.9 or newer, which macOS and every Linux already
 has, and Chrome, Chromium, Edge or Brave for reading job pages and making PDFs.
 No API key: your agent is the model, so whatever you already pay for covers it.
+On Windows, install Python from python.org and use the **No terminal** download
+above; Chrome and Edge are found in their usual places.
 
 <details>
 <summary><b>Optional:</b> LaTeX for the PDFs</summary>
