@@ -45,6 +45,19 @@ def test_dates_print_as_a_person_writes_them(profile):
     assert "Mar 2021 -- Present" in jh.cv_latex(profile)   # the en dash, as TeX sets it
 
 
+def test_a_french_cv_names_its_months_in_french(profile, job):
+    """A French posting's CV printed "Jan 2023 – Présent": the person's own
+    word in French, the machine's month in English."""
+    profile.experience[0].start, profile.experience[0].end = "2023-01", "Présent"
+    profile.education[0].end = "2019-07"
+    job.language = "fr"
+    document = jh.tailor(profile, job, {"roles": [{"index": 0}, {"index": 1}]})
+    for name, page in rendered(document).items():
+        assert "janv. 2023" in page and "juil. 2019" in page, name
+        assert "Jan 2023" not in page, name
+    assert "Jan 2023" in jh.cv_markdown(profile), "a profile has no language: English"
+
+
 # --- order --------------------------------------------------------------------
 
 def order_in(html):
@@ -101,7 +114,10 @@ def test_a_tighter_density_sets_a_smaller_page(profile):
 
 def test_a_heading_never_ends_a_page(profile):
     assert "break-after: avoid" in jh.cv_html(profile)
-    assert "\\filbreak" in jh.cv_latex(profile)
+    latex = jh.cv_latex(profile)
+    section = latex[latex.index("\\newcommand{\\cvsection}"):latex.index("\\newcommand{\\cventry}")]
+    assert "\\filbreak" not in section, "it moved every section that did not fit whole"
+    assert "\\pagegoal-\\pagetotal" in latex and "beginpenalty=10000" in latex
 
 
 # --- trimming ------------------------------------------------------------------
@@ -209,3 +225,28 @@ def test_a_long_cv_comes_out_on_one_page_in_latex(tmp_path):
 def test_the_latex_cv_reports_its_pages_and_keeps_every_section(profile, tmp_path):
     made = jh.export(profile, tmp_path / "cv.pdf")
     assert made == "latex" and made.pages == 1
+
+
+def eight_roles():
+    """Sixteen years in eight roles of seven bullets: a page and a half of
+    Experience, more than the rest of page one can take."""
+    return Profile(
+        personal=Personal(name="Ada", surname="L", email="a@b.co"),
+        summary="Engineer of pipelines that stay up.",
+        experience=[Role(position=f"Engineer {i}", company=f"Co{i}", start=f"{2010 + 2 * i}-01",
+                         end=f"{2011 + 2 * i}-12",
+                         bullets=[f"Did thing {j} at Co{i}." for j in range(7)])
+                    for i in range(8)],
+        education=[jh.Education(level="BSc", institution="U", start="2006", end="2009")],
+        skills=["Python", "SQL"])
+
+
+@needs_tex
+def test_a_long_section_starts_on_the_page_it_follows(tmp_path):
+    """\\filbreak sent Experience to page two whole, so page one held a name
+    and a summary: three pages where two do, and a two-page budget pushed to
+    the densest type for nothing."""
+    loose = jh.export(eight_roles(), tmp_path / "loose.pdf", pages=0)
+    assert loose.pages == 2
+    budgeted = jh.export(eight_roles(), tmp_path / "cv.pdf")
+    assert budgeted.budget == 2 and budgeted.pages == 2 and budgeted.density == "normal"

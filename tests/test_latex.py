@@ -106,6 +106,44 @@ def test_an_old_two_argument_template_still_gets_a_document(profile):
     assert r"\cventrydated{Data Engineer}" in source
 
 
+#: A template somebody wrote by hand: the four macros, and no package at all.
+MINIMAL = r"""\documentclass{article}
+\newcommand{\cvname}[1]{{\Large #1}\par}
+\newcommand{\cvcontact}[1]{#1\par}
+\newcommand{\cvsection}[1]{\section*{#1}}
+\newcommand{\cventry}[2]{\textbf{#1}\par #2\par}
+\begin{document}
+%%JOBHUNT-BODY%%
+\end{document}
+"""
+
+
+def hand_written(profile):
+    """The fixture with a link and a course list, so `\\href` and the greyed
+    text are both in the body."""
+    profile.personal.github = "https://example.com/ada"
+    profile.projects[0].link = "https://example.com/pipe"
+    profile.education[0].courses = ["Databases"]
+    return jh.cv_latex(profile, template=MINIMAL)
+
+
+def test_the_body_leans_on_no_package_a_template_might_not_load(profile):
+    """Links and greyed text were added to the body, and a template without
+    hyperref or xcolor stopped compiling on `\\href` and `\\color`."""
+    source = hand_written(profile)
+    body = source.split(r"\begin{document}")[1]
+    assert r"\providecommand{\href}[2]{#2}" in body
+    assert r"\href{https://example.com/ada}" in body
+    assert r"\color" not in body, "a colour belongs to the template, via \\cvmuted"
+
+
+@needs_tex
+def test_a_hand_written_template_without_hyperref_or_xcolor_compiles(profile, tmp_path):
+    out = tmp_path / "cv.pdf"
+    jh.write_pdf_latex(hand_written(profile), out)
+    assert out.read_bytes().startswith(b"%PDF")
+
+
 # --- templates --------------------------------------------------------------
 
 def test_a_built_in_template_resolves_by_name():

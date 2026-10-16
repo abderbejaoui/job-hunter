@@ -448,13 +448,20 @@ class Issue:
         return f"[{self.severity}] {self.path}: {self.message}"
 
 
-_MONTH_ABBR = ("Jan", "Feb", "Mar", "Apr", "May", "Jun",
-               "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+#: Months as a CV shortens them, for each language `_MONTHS` names. French
+#: has its own short forms: three letters would make juin and juillet one word.
+_MONTH_ABBR = {
+    "en": ("Jan", "Feb", "Mar", "Apr", "May", "Jun",
+           "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"),
+    "fr": ("janv.", "févr.", "mars", "avr.", "mai", "juin",
+           "juil.", "août", "sept.", "oct.", "nov.", "déc."),
+}
 _ISO_MONTH = re.compile(r"^(\d{4})-(\d{1,2})(?:-\d{1,2})?$")
 
 
-def format_date(value):
-    """A date as a CV prints it: "2025-11" and "2025-11-03" become "Nov 2025".
+def format_date(value, language=""):
+    """A date as a CV prints it: "2025-11" and "2025-11-03" become "Nov 2025",
+    or "nov. 2025" in a French document.
 
     A year on its own, "Present", "Summer 2024" and anything else pass through
     as written - the profile is the person's own wording, and only the machine
@@ -464,14 +471,20 @@ def format_date(value):
     raw = str(value or "").strip()
     match = _ISO_MONTH.match(raw)
     if match and 1 <= int(match.group(2)) <= 12:
-        return f"{_MONTH_ABBR[int(match.group(2)) - 1]} {match.group(1)}"
+        return f"{_MONTH_ABBR[_key(language)][int(match.group(2)) - 1]} {match.group(1)}"
     return raw
 
 
-def _period(start, end):
+def _period(start, end, language=""):
     """"Nov 2025 – Present", with the en dash every renderer here can set."""
-    first, last = format_date(start), format_date(end)
+    first, last = format_date(start, language), format_date(end, language)
     return f"{first} – {last}" if first and last else (first or last)
+
+
+def _when(entry, document):
+    """A role's or a degree's dates, in the language of the document they are
+    printed in. A profile has no language and prints in English."""
+    return _period(entry.start, entry.end, getattr(document, "language", ""))
 
 
 @dataclass
@@ -1475,9 +1488,15 @@ def _years_note(job, profile):
     held = years_held(profile)
     if held is None:
         return f"Asks for {asked} years. Your roles carry no readable dates."
-    if held >= asked:
-        return f"Asks for {asked} years; your profile dates to about {held:.0f}."
-    return (f"Asks for {asked} years; your profile dates to about {held:.0f}. "
+    # Rounded down to a tenth, never up: 4.9 years printed as "about 5" beside
+    # "asks for 5" called a gap that the number on the page said was not there.
+    # Whole months, because that is what years_held counts in, and integers
+    # cannot make fifty-nine months come out as five years.
+    months = round(held * 12)
+    shown = f"{months * 10 // 12 / 10:g}"
+    if months >= asked * 12:
+        return f"Asks for {asked} years; your profile dates to about {shown}."
+    return (f"Asks for {asked} years; your profile dates to about {shown}. "
             "This is the gap tailoring cannot close.")
 
 
@@ -1556,6 +1575,8 @@ class TailoredCV(Profile):
 
     job_label: str = ""
     job_slug: str = ""
+    #: The posting's language, as on the letter. The month names follow it.
+    language: str = ""
     #: The sections in the order this CV prints them, when someone chose one.
     #: Empty means by audience: a student leads with the degree.
     section_order: list = field(default_factory=list)
@@ -1650,6 +1671,7 @@ def tailor(profile, job, data):
         skills=skills,
         job_label=job.label,
         job_slug=job.slug,
+        language=job.language,
     )
 
     document.issues = issues
@@ -2120,8 +2142,8 @@ def _html_sections(document):
             if role.company:
                 title += f", {_e(role.company)}"
             out += ['<div class="block">', '  <div class="row">', f"    <h3>{title}</h3>"]
-            if role.period:
-                out.append(f'    <span class="when">{_e(role.period)}</span>')
+            if when := _when(role, document):
+                out.append(f'    <span class="when">{_e(when)}</span>')
             out.append("  </div>")
             if role.location:
                 out.append(f'  <div class="muted" style="font-size:9pt">'
@@ -2152,8 +2174,8 @@ def _html_sections(document):
             head = _joined([edu.level, edu.field_of_study], ", ")
             out += ['<div class="block">', '  <div class="row">',
                     f'    <h3><span class="edu-line">{head}</span></h3>']
-            if edu.period:
-                out.append(f'    <span class="when">{_e(edu.period)}</span>')
+            if when := _when(edu, document):
+                out.append(f'    <span class="when">{_e(when)}</span>')
             out += ["  </div>",
                     '  <div class="muted" style="font-size:9.5pt">'
                     + _joined([edu.institution, edu.location, edu.grade]) + "</div>"]
@@ -2278,8 +2300,8 @@ def _markdown_sections(document):
         for role in document.experience:
             where = " — ".join(x for x in (role.company, role.location) if x)
             out += ["", f"### {role.position}" + (f", {where}" if where else "")]
-            if role.period:
-                out.append(f"*{role.period}*")
+            if when := _when(role, document):
+                out.append(f"*{when}*")
             out += [f"- {bullet}" for bullet in role.bullets]
         parts["experience"] = out
 
@@ -2301,7 +2323,7 @@ def _markdown_sections(document):
             head = ", ".join(x for x in (study.level, study.field_of_study) if x)
             out += ["", f"### {head}" if head else "### Education"]
             line = " · ".join(x for x in (study.institution, study.location,
-                                          study.period, study.grade) if x)
+                                          _when(study, document), study.grade) if x)
             if line:
                 out.append(line)
             if study.courses:
@@ -2651,17 +2673,25 @@ PLAIN_TEX = r"""
 
 \pagestyle{empty}
 \setlength{\parindent}{0pt}
-\setlist[itemize]{leftmargin=12pt,itemsep=%%JOBHUNT-ITEMSEP%%,parsep=0pt,topsep=2pt}
+\setlist[itemize]{leftmargin=12pt,itemsep=%%JOBHUNT-ITEMSEP%%,parsep=0pt,topsep=2pt,beginpenalty=10000}
 
+% A heading moves to the next page only when fewer than five lines are left
+% under it. \filbreak moved any section that did not fit whole, which left a
+% page holding a name and a summary. The \nopagebreaks, and the list's
+% beginpenalty, keep a heading and an entry's title with the line below them.
+% \leavevmode comes before \color: a colour set between paragraphs leaves a
+% breakpoint behind it that \nopagebreak cannot reach.
 \newcommand{\cvname}[1]{{\LARGE\bfseries #1}\par\vspace{2pt}}
 \newcommand{\cvcontact}[1]{{\small\color{muted}\raggedright #1\par}\vspace{8pt}}
-\newcommand{\cvsection}[1]{\filbreak%
-  \vspace{%%JOBHUNT-GAP%%}{\footnotesize\bfseries\color{accent}\MakeUppercase{#1}}\par
-  \vspace{-4pt}\textcolor{muted}{\rule{\linewidth}{0.4pt}}\par\vspace{3pt}}
-\newcommand{\cventry}[2]{\textbf{#1}\par{\small\color{muted}#2}\par}
+\newcommand{\cvsection}[1]{\par
+  \ifdim\dimexpr\pagegoal-\pagetotal\relax<5\baselineskip\vfil\break\fi
+  \vspace{%%JOBHUNT-GAP%%}\leavevmode{\footnotesize\bfseries\color{accent}\MakeUppercase{#1}}\par
+  \nopagebreak\vspace{-4pt}\textcolor{muted}{\rule{\linewidth}{0.4pt}}\par\nopagebreak\vspace{3pt}}
+\newcommand{\cventry}[2]{\textbf{#1}\par\nopagebreak\leavevmode{\small\color{muted}#2}\par}
 \newcommand{\cventrydated}[3]{\textbf{#1}\hfill{\small\color{muted}#3}\par%
-  \ifx&#2&\else{\small\color{muted}#2}\par\fi}
+  \ifx&#2&\else\nopagebreak\leavevmode{\small\color{muted}#2}\par\fi}
 \newcommand{\cvline}[2]{#1\hfill{\small\color{muted}#2}\par}
+\newcommand{\cvmuted}[1]{\textcolor{muted}{#1}}
 
 \begin{document}
 %%JOBHUNT-BODY%%
@@ -2738,8 +2768,12 @@ _TEX_URL_SAFE = re.compile(r"^[A-Za-z0-9:/._@?=+-]*$")
 #: Macros the body leans on that an older or hand-written template may not
 #: define. `\providecommand` is a no-op where the template already has them,
 #: and gives a template written against the two-argument `\cventry` the old
-#: look rather than a compile error.
+#: look rather than a compile error. The body names no package's command
+#: and no colour of its own: a template without hyperref prints links as
+#: text, and one without xcolor or a `muted` colour sets greyed text in black.
 _TEX_PRELUDE = (
+    r"\providecommand{\href}[2]{#2}",
+    r"\providecommand{\cvmuted}[1]{#1}",
     r"\providecommand{\cventrydated}[3]{\cventry{#1}{#2 $\cdot$ #3}}",
     r"\providecommand{\cvline}[2]{#1\hfill{\small #2}\par}",
     r"\providecommand{\cvsubject}[1]{{\bfseries #1}\par}",
@@ -2774,7 +2808,7 @@ def _tex_sections(document):
         for role in document.experience:
             where = [role.company, role.location] if role.position else [role.location]
             out.append(_cmd("cventrydated", tex_escape(role.position or role.company),
-                            _tex_dots(*where), tex_escape(role.period)))
+                            _tex_dots(*where), tex_escape(_when(role, document))))
             if role.bullets:
                 out.append("\\begin{itemize}")
                 out += ["  \\item " + tex_escape(b) for b in role.bullets]
@@ -2790,8 +2824,11 @@ def _tex_sections(document):
                 name = _cmd("href", project.link, name)
             out.append(_cmd("cventrydated", name,
                             tex_escape(", ".join(project.tech)) if project.tech else "", ""))
+            # \nobreak keeps a title off the foot of a page with its text over
+            # the page. Not \nopagebreak: a description opening with "[" would
+            # be read as its optional argument.
             if project.description:
-                out.append(tex_escape(project.description) + "\\par")
+                out.append("\\nobreak " + tex_escape(project.description) + "\\par")
             out.append("\\vspace{3pt}")
         parts["projects"] = out
 
@@ -2802,10 +2839,10 @@ def _tex_sections(document):
             out.append(_cmd("cventrydated", tex_escape(head or study.institution),
                             _tex_dots(study.institution if head else "", study.location,
                                       study.grade),
-                            tex_escape(study.period)))
+                            tex_escape(_when(study, document))))
             if study.courses:
-                out.append("{\\small\\color{muted}" + tex_escape(", ".join(study.courses))
-                           + "}\\par")
+                out.append("\\nobreak{\\small\\cvmuted{" + tex_escape(", ".join(study.courses))
+                           + "}}\\par")
             out.append("\\vspace{3pt}")
         parts["education"] = out
 
@@ -2817,7 +2854,7 @@ def _tex_sections(document):
         for cert in document.certifications:
             line = tex_escape(cert.name)
             if cert.issuer:
-                line += " {\\color{muted}--- " + tex_escape(cert.issuer) + "}"
+                line += " \\cvmuted{--- " + tex_escape(cert.issuer) + "}"
             out.append(_cmd("cvline", line, tex_escape(cert.year)))
         parts["certifications"] = out
 
@@ -2845,8 +2882,8 @@ def cv_latex(document, template=None, theme=NEUTRAL, density="normal", order=Non
     """A CV as a LaTeX source document."""
     body = [_cmd("cvname", tex_escape(document.personal.full_name or "CV"))]
     if document.personal.headline:
-        body.append("{\\small\\color{muted}" + tex_escape(document.personal.headline)
-                    + "}\\par\\vspace{3pt}")
+        body.append("{\\small\\cvmuted{" + tex_escape(document.personal.headline)
+                    + "}}\\par\\vspace{3pt}")
     contact = _tex_contact(document.personal)
     if contact:
         body.append(_cmd("cvcontact", contact))

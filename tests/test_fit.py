@@ -188,6 +188,17 @@ def test_the_years_gap_is_named_when_it_is_real(profile):
     assert "tailoring cannot close" in jobhunt.score(demanding, profile).years_note
 
 
+def test_the_years_note_never_rounds_up_to_what_was_asked():
+    """Months made 4.9 years print as "about 5", beside "asks for 5" and a
+    gap. Rounded down, the figure and the verdict agree."""
+    five = jobhunt.clone(JOB, **{"requirements": ["5+ years of experience"]})
+    short = Profile(experience=[Role(position="A", company="X", start="2021-11", end="2026-10")])
+    note = jobhunt.score(five, short).years_note
+    assert "about 4.9." in note and "cannot close" in note
+    enough = Profile(experience=[Role(position="A", company="X", start="2021-11", end="2026-11")])
+    assert jobhunt.score(five, enough).years_note.endswith("dates to about 5.")
+
+
 # --- shape ------------------------------------------------------------------
 
 def test_a_posting_with_no_requirements_falls_back_to_keywords(profile):
