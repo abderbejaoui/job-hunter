@@ -2445,8 +2445,8 @@ def letter_markdown(letter):
 
 # --- render: the door -------------------------------------------------------
 #
-# The one piece of policy here: a document with a blocking issue - an unfilled
-# placeholder, a missing name - does not become a file. That promise is in the
+# The one piece of policy here: a document with a blocking issue - a missing
+# name, a letter with no body - does not become a file. That promise is in the
 # README, so it is enforced in the one place every export goes through rather
 # than in each caller.
 
@@ -2470,8 +2470,8 @@ def blocking_issues(document):
 
     A tailored CV and a letter each publish their own `blocking` list. A plain
     `Profile` publishes none, and would otherwise walk through the door
-    unchecked - carrying the '[Your Name]' this whole rule exists to stop - so
-    it is validated here instead. The door is one place, for every document.
+    unchecked - with no name on it - so it is validated here instead. The
+    door is one place, for every document.
     """
     declared = getattr(document, "blocking", None)
     if declared is not None:
