@@ -66,7 +66,7 @@ stale.
 2. The script beside it, ending with `raise SystemExit(jh.run_cli(work))` so
    the exit codes mean the same thing as everywhere else.
 3. `python tools/sync.py` to give it the library and the license.
-4. Add it to `tools/site/data.py` — `ORDER`, `HEADLINES`, `PLAIN` — and to
+4. Add it to `tools/site/data.py` — `ORDER` and `CARDS` — and to
    `SKILLS` in `install.sh`. Tests fail if you forget either.
 
 ## How the tests are organised
