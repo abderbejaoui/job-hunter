@@ -6,8 +6,8 @@ personal:
   phone: "+44 7700 900123"
   city: Manchester
   country: United Kingdom
-  github: https://github.com/priyamenon
-  linkedin: https://linkedin.com/in/priyamenon
+  github: https://code.example.com/priya
+  linkedin: https://people.example.org/priya
   website: ""
 summary: Data analyst with a year in an analytics team and eight years teaching mathematics, comfortable turning a messy spreadsheet into a decision and explaining it to people who do not like numbers.
 skills:
@@ -25,7 +25,7 @@ experience:
 - position: Junior Data Analyst
   company: Northern Rail Analytics
   start: "2025-01"
-  end: Present
+  end: "2025-12"
   location: Manchester, United Kingdom
   industry: Transport
   bullets:
@@ -79,7 +79,7 @@ education:
 projects:
 - name: Bus punctuality open data
   description: Analysed 2 million open bus-arrival records in Python to show which routes lose most time at which stops; written up with charts for a local transport forum.
-  link: https://github.com/priyamenon/bus-punctuality
+  link: https://code.example.com/priya/bus-punctuality
   tech:
   - Python
   - pandas

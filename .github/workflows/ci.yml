@@ -65,11 +65,13 @@ jobs:
       # The pages a person will send, rendered from the corpus on the runner
       # that has a browser, kept for a week so a rendering change can be
       # looked at rather than imagined. tools/gallery.py says what it makes.
+      # It runs when the tests fail too - that is when the pages most need
+      # looking at - but not for a run cancelled by a newer push.
       - name: Render the gallery
-        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.13'
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.13' && !cancelled()
         run: python tools/gallery.py gallery
       - uses: actions/upload-artifact@v4
-        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.13'
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.13' && !cancelled()
         with:
           name: cv-gallery
           path: gallery

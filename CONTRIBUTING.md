@@ -121,9 +121,10 @@ and open the PDFs. Look for, in this order:
 `tests/corpus/` and a row to its README saying what it is there to catch.
 That is how the corpus grows: from failures, not from imagination.
 
-**Thresholds** - one page, two past ten years, five bullets before trimming,
-sixty words of summary - are constants in `core/jobhunt.py` with a comment
-saying why. Change the number and the comment together.
+**Thresholds** - one page, two past `LONG_CAREER` (ten) years, and what
+`trimmed` keeps under `--fit` (five bullets a role, then three outside the
+first) - live in `core/jobhunt.py` beside a comment saying why. Change the
+number and the comment together.
 
 ## Style
 

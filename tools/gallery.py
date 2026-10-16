@@ -24,7 +24,7 @@ def main(argv):
     out.mkdir(parents=True, exist_ok=True)
     rows = []
     for path in sorted(CORPUS.glob("*.yaml")):
-        profile = jh.load(jh.Profile, path)
+        profile = jh.load(jh.TailoredCV, path)   # as pdf.py reads it, language and all
         stem = path.stem
         for density in jh.DENSITIES:
             (out / f"{stem}-{density}.html").write_text(

@@ -3,12 +3,12 @@ personal:
   surname: Kowalski
   headline: Staff Engineer - Payments Infrastructure
   email: tomasz.kowalski@example.com
-  phone: "+48 600 000 000"
+  phone: ""
   city: Warsaw
   country: Poland
-  github: https://github.com/tkowalski
-  linkedin: https://linkedin.com/in/tkowalski
-  website: https://tkowalski.dev
+  github: https://code.example.com/tomasz
+  linkedin: https://people.example.org/tomasz
+  website: https://tomasz.example.net
 summary: Staff engineer with fourteen years in payments and platform infrastructure, most recently owning the ledger and settlement systems behind 3 billion euros a year of transfers.
 skills:
 - Go
@@ -112,7 +112,7 @@ education:
 projects:
 - name: ledgerkit
   description: An open-source double-entry ledger library in Go with 1,400 GitHub stars, used by two fintechs in production.
-  link: https://github.com/tkowalski/ledgerkit
+  link: https://code.example.com/tomasz/ledgerkit
   tech:
   - Go
 - name: Payments Reliability talk series

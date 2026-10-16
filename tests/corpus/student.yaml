@@ -6,8 +6,8 @@ personal:
   phone: ""
   city: Tunis
   country: Tunisia
-  github: https://github.com/nourhaddad
-  linkedin: https://linkedin.com/in/nourhaddad
+  github: https://code.example.com/nour
+  linkedin: https://people.example.org/nour
   website: ""
 summary: Final-year software engineering student with two production internships, building backend services in Python and Go and the Kubernetes tooling around them.
 skills:
@@ -67,7 +67,7 @@ education:
 projects:
 - name: kvlite
   description: A replicated key-value store in Go with Raft consensus, tested with 5 nodes under network partitions.
-  link: https://github.com/nourhaddad/kvlite
+  link: https://code.example.com/nour/kvlite
   tech:
   - Go
   - gRPC
