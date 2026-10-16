@@ -947,32 +947,48 @@ class FitReport:
 # judge. Nothing here asks a model for anything.
 
 #: Words that carry no signal.
-_NOISE = frozenset("""
+_NOISE = frozenset(map(norm, """
 a an the and or of for to in at on with by from new our we you your job role
 position opening opportunity career careers hiring m f d w x h
-one two three four five six seven eight nine ten
+one two three four five six seven eight nine ten e.g i.e etc vs
 du sie wir ihr der die das den dem ein eine einen als auch bei mit von und oder
 le la les un une des du au aux et ou avec chez dans pour par
-""".split())
+january february march april may june july august september october november
+december monday tuesday wednesday thursday friday saturday sunday
+summer autumn fall winter
+janvier février mar avril mai juin juillet août septembre octobre novembre
+décembre lundi mardi mercredi jeudi vendredi samedi dimanche printemp été
+automne hiver januar februar märz juni juli oktober dezember montag dienstag
+mittwoch donnerstag freitag samstag sonntag
+""".split()))
+# Months, days and seasons are in there because "Available for a Summer 2027
+# internship (May/June start dates)" reported Summer, May and June as gaps. Not
+# "spring": it is also a Java framework, and "Experience with Spring" asks for it.
+# Every list here goes through `norm` because that is the form a word is looked
+# up in, and `norm` drops a final s: unfolded, "previous", "various", "plus" and
+# "bonus" were listed and never matched.
 
 #: The vocabulary requirements are written in, as opposed to what they require.
 #: "Experience with Kafka" is about Kafka; every other word is scaffolding.
-_SCAFFOLDING = frozenset("""
+_SCAFFOLDING = frozenset(map(norm, """
 experience experienced strong solid proven deep good excellent working work
 years year knowledge understanding familiarity familiar ability able skills
 skill background track record hands-on plus bonus ideally preferably must have
 has having is are be been you your we our team environment able comfortable
 significant substantial extensive considerable relevant appropriate suitable
 equivalent similar related various several multiple broad wide
+advanced intermediate basic fluent native professional level minimum required
+mandatory preferred desirable essential production available availability
+previous prior currently pursuing
 demonstrated ausgezeichnete gute kenntnisse erfahrung jahre sowie expérience
 connaissance solide maîtrise ans bonne
-""".split())
+""".split()))
 
 #: HR vocabulary. A lexical reader cannot judge "strong communication skills",
 #: and a profile is not going to contain the word "proactive". Treating these as
 #: requirements would report them as gaps, which is noise dressed as rigour, so
 #: a line that names nothing else is marked not checkable instead.
-_SOFT = frozenset("""
+_SOFT = frozenset(map(norm, """
 communication communicator collaboration collaborative teamwork team-player
 leadership ownership autonomy autonomous independent independently proactive
 motivated driven passionate curious pragmatic organised organized reliable
@@ -982,7 +998,7 @@ thrive thrives thriving excited excellent great strong deep passion interest
 willing eager keen love enjoy comfortable confident
 kommunikation teamfähigkeit selbstständig eigenverantwortlich
 communication autonomie rigueur curiosité esprit équipe
-""".split())
+""".split()))
 
 #: Postings write the number both ways, and "Five or more years" is as common
 #: as "5+ years".
@@ -1000,38 +1016,124 @@ _YEARS = re.compile(
 _PRESENT = frozenset("present now current ongoing today heute aujourd'hui actuel".split())
 
 
-def salient_terms(line, vocabulary=frozenset()):
+#: Verbs a requirement line opens with when it is written as a sentence. They
+#: are capitalised for being first, and reading them as names told people they
+#: lacked "Build" and "Own". A short, explicit list on purpose -
+#: "Go services at scale" and "Linux administration" open with what they ask
+#: for, and a rule about first words in general cannot tell them apart. The
+#: adjectives that open lines - Strong, Proven, Hands-on, Familiarity - are not
+#: repeated here: they are scaffolding wherever they sit.
+_OPENERS = frozenset("""
+build own design develop lead drive collaborate mentor manage create implement
+maintain support ensure write partner help deliver improve define contribute
+communicate identify analyze analyse architect champion coach scale ship run
+operate plan review test debug monitor
+""".split())
+
+#: Words that name nothing. A line that capitalises one of them along with
+#: every other word is in title case, and its capitals say nothing.
+_LOWERCASE = _NOISE | _SCAFFOLDING | _SOFT | _OPENERS
+
+
+def _pieces(word, vocabulary):
+    """A token split at its slashes, unless every part is an acronym or the
+    candidate lists it whole. CI/CD, TCP/IP and UI/UX are one name each;
+    "docs/runbooks", "May/June" and "Science/Software" are two words each,
+    and were each reported whole as a gap on a real posting. Hyphens are left
+    alone: scikit-learn and Objective-C are names with a hyphen in them."""
+    parts = [part for part in word.split("/") if part]
+    if (len(parts) < 2 or norm(word) in vocabulary
+            or all(part.isalpha() and part.isupper() for part in parts)):
+        return [word]
+    return parts
+
+
+def _kind(word, vocabulary, own):
+    """What one token is to a reader: "name" when something marks it as one,
+    "capital" when only its leading capital does, None when nothing does.
+
+    The candidate's own skills are looked up before the noise list and the
+    posting's own company and location, so neither can hide a tool they have:
+    Spring is a framework as well as a season, and MongoDB is hiring for
+    MongoDB. Scaffolding and HR words come first, as they always have - a
+    "Leadership" on a skills list does not make "strong leadership" checkable.
+    """
+    key = norm(word)
+    if len(word) < 2 or key in _SCAFFOLDING or key in _SOFT:
+        return None
+    if key in vocabulary:
+        return "name"
+    if key in _NOISE or key in own:
+        return None
+    if (word.isupper() or any(c.isupper() for c in word[1:])
+            or any(c.isdigit() or c in "+#." for c in word)):
+        return "name"
+    return "capital" if word[0].isupper() else None
+
+
+def salient_terms(line, vocabulary=frozenset(), own=frozenset()):
     """The concrete things a requirement line asks for, in order, deduplicated.
 
     Precision over recall, deliberately. A term is kept when it looks like a
-    *name* rather than a word: an acronym, a capitalised word, or something
-    carrying a digit or a symbol - AWS, Kubernetes, C++, CI/CD, Python3.
+    *name* rather than a word: an acronym, a capital inside a word, something
+    carrying a digit or a symbol, or a capitalised word - AWS, PostgreSQL,
+    iOS, C++, CI/CD, Python3, Kubernetes.
+
+    A leading capital alone is not enough in two places. On a verb from
+    `_OPENERS` that opens the line - "Build data pipelines in Python" asks for
+    Python, "Own the ingestion pipelines" for nothing a profile could name.
+    And anywhere in a title-case line, one that capitalises every word, the
+    furniture included: "Excellent Problem Solving Skills" asks for nothing
+    called Problem. A list of names - "Docker, Kubernetes, Helm",
+    "Google Cloud Platform" - capitalises no furniture and keeps every name.
+
+    A slash splits a token into words judged on their own, unless both sides
+    are acronyms: CI/CD is one name, REST/gRPC is two, and "docs/runbooks" or
+    "caching/storage" is none. A hyphen splits nothing - scikit-learn,
+    Objective-C. Months, days and seasons are noise, and `own` - the posting's
+    own company and location, which `extract` supplies - is furniture: "In
+    office in Austin" and "Cloudflare for Students" say where the job is and
+    who is hiring.
 
     `vocabulary` rescues the exception: plenty of real tools are lowercase -
     dbt, npm, kubectl - and would look like ordinary words. A token the
-    candidate lists among their own skills is a name whatever its case.
+    candidate lists among their own skills is a name whatever its case and
+    wherever it sits, and none of the rules above can drop it; only
+    scaffolding and HR words outrank it.
 
     The cost is that a lowercase tool the candidate does *not* have is missed
-    here. That is the right trade: a wrongly reported gap - telling someone they
-    lack "production" - is worse than a quiet omission, because the
-    requirement's own sentence is printed beside the verdict for them to read.
+    here, and so is a capitalised one in a title-case line - "Experience With
+    Kafka". That is the right trade: a wrongly reported gap - telling someone
+    they lack "production", or "Build" - is worse than a quiet omission,
+    because the requirement's own sentence is printed beside the verdict for
+    them to read.
     """
+    # `words` skips any bullet, number or punctuation before the first word,
+    # so tokens[0] is the word that opens the line.
+    tokens = [piece for word in words(line) for piece in _pieces(word, vocabulary)]
+    titled = (all(token[0].isupper() for token in tokens)
+              and any(norm(token) in _LOWERCASE for token in tokens))
     found = []
     seen = set()
-    for word in words(line):
+    for position, word in enumerate(tokens):
         key = norm(word)
-        if len(word) < 2 or key in seen:
+        kind = _kind(word, vocabulary, own)
+        if kind is None or key in seen:
             continue
-        if key in _NOISE or key in _SCAFFOLDING or key in _SOFT:
-            continue
-        named = (word.isupper() or word[0].isupper()
-                 or any(c.isdigit() or c in "+#/." for c in word)
-                 or key in vocabulary)
-        if not named:
+        if kind == "capital" and (titled or (position == 0 and key in _OPENERS)):
             continue
         seen.add(key)
         found.append(word)
     return found
+
+
+def own_words(job):
+    """The posting's own company and location. No profile backs "Cloudflare"
+    or "Austin", and no requirement means them: a line that names them is
+    saying where the job is and who is hiring. Two letters and under is left
+    alone so a company called "Scale AI" does not swallow AI."""
+    return frozenset(norm(word) for word in words(f"{job.company} {job.location}")
+                     if len(word) > 2)
 
 
 def years_required(line):
@@ -1095,9 +1197,10 @@ def extract(job, vocabulary=frozenset()):
     if not stated and job.keywords:
         stated = [(word, "required") for word in job.keywords]
 
+    own = own_words(job)
     found = []
     for line, kind in stated:
-        terms = salient_terms(line, vocabulary)
+        terms = salient_terms(line, vocabulary, own)
         found.append(Requirement(
             text=line.strip(), kind=kind, terms=terms,
             why=("" if terms else

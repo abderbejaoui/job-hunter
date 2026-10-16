@@ -211,6 +211,186 @@ def test_the_delta_reads_as_a_sentence(profile):
     assert "OpenStack" in written
 
 
+@pytest.mark.parametrize("line, expected", [
+    # A verb that opens a sentence is capitalised for being first.
+    ("Build data pipelines in Python", ["Python"]),
+    ("Own the ingestion pipelines", []),
+    ("Design and implement REST APIs", ["REST", "APIs"]),
+    ("Mentor junior engineers", []),
+    ("Build REST APIs", ["REST", "APIs"]),
+    # A tool that opens a line is the thing asked for, however the sentence
+    # goes on - which is why the openers are a list and not a rule about
+    # first words.
+    ("Linux administration", ["Linux"]),
+    ("Go services at scale", ["Go"]),
+    ("Figma for design", ["Figma"]),
+    ("Terraform to manage infrastructure", ["Terraform"]),
+    ("React for building UIs", ["React", "UIs"]),
+    ("Kubernetes for container orchestration", ["Kubernetes"]),
+    ("Swift for iOS apps", ["Swift", "iOS"]),
+    ("Terraform experience", ["Terraform"]),
+    ("AWS certification preferred", ["AWS"]),
+    ("CI/CD pipelines", ["CI/CD"]),
+    ("Docker, Kubernetes, Helm", ["Docker", "Kubernetes", "Helm"]),
+    ("Kubernetes and Docker", ["Kubernetes", "Docker"]),
+    ("Kafka, Flink, or similar streaming technologies", ["Kafka", "Flink"]),
+    ("Kafka", ["Kafka"]),
+    ("Kubernetes in production", ["Kubernetes"]),
+    ("Python (advanced)", ["Python"]),
+    ("Deep PostgreSQL knowledge", ["PostgreSQL"]),
+])
+def test_a_verb_that_opens_a_line_is_not_a_name(line, expected):
+    """"Build data pipelines" used to report a gap called Build, and "Own",
+    "Design" and "Mentor" beside it - one per responsibility-shaped line."""
+    assert jobhunt.salient_terms(line) == expected
+
+
+@pytest.mark.parametrize("line, vocabulary, expected", [
+    # Every word capitalised, the ordinary ones too: the capitals say nothing,
+    # and only a name marked some other way counts.
+    ("Excellent Problem Solving Skills", set(), []),
+    ("Experience With PostgreSQL And AWS", set(), ["PostgreSQL", "AWS"]),
+    # The cost, pinned so it is a decision and not a surprise.
+    ("Strong Python Skills", set(), []),
+    ("Strong Python Skills", {"python"}, ["Python"]),
+    # A list of names capitalises no ordinary word, so it is not title case.
+    ("Google Cloud Platform", set(), ["Google", "Cloud", "Platform"]),
+    # A designer who lists Design is asked about it, opener or not.
+    ("Design systems for mobile", {"design"}, ["Design"]),
+])
+def test_title_case_carries_no_signal(line, vocabulary, expected):
+    assert jobhunt.salient_terms(line, frozenset(vocabulary)) == expected
+
+
+@pytest.mark.parametrize("line, expected", [
+    # Found on a live posting: two lowercase words joined by a slash are
+    # not a tool, and were each reported as a gap.
+    ("Understanding of distributed systems (networking, caching/storage concepts)", []),
+    ("Comfortable writing docs/runbooks and collaborating across teams", []),
+    ("Experience with service mesh patterns (e.g., Istio mTLS)", ["Istio", "mTLS"]),
+    # A slash between acronyms joins them; anywhere else the parts are names
+    # or not on their own.
+    ("CI/CD and TCP/IP experience", ["CI/CD", "TCP/IP"]),
+    ("Build REST/gRPC APIs", ["REST", "gRPC", "APIs"]),
+    ("Node.js, .NET or C#", ["Node.js", "NET", "C#"]),
+    # A hyphen is part of the name.
+    ("Objective-C or Swift", ["Objective-C", "Swift"]),
+])
+def test_a_slash_between_two_words_is_punctuation_not_a_name(line, expected):
+    assert jobhunt.salient_terms(line) == expected
+
+
+def test_a_hyphenated_tool_the_candidate_lists_is_kept_whole():
+    assert jobhunt.salient_terms("Experience with scikit-learn",
+                                 frozenset({"scikit-learn"})) == ["scikit-learn"]
+
+
+@pytest.mark.parametrize("line, expected", [
+    # All found on live internship postings, run against a real CV. Each of
+    # the capitalised words below was reported as a gap.
+    ("Available for a Summer 2027 internship (May/June start dates)", []),
+    ("Available to complete a 6-month internship beginning in February, March, "
+     "April, May, or June 2027", []),
+    ("Ability to commit to a full-time (40 hours/week Monday - Friday) for a "
+     "minimum 12 week internship", []),
+    # Spring is not noise: it is a framework too.
+    ("A graduation date in Fall 2027 or Spring 2028 with a Bachelor's degree",
+     ["Spring", "Bachelor"]),
+    # Words joined by a slash are judged apart, so a Software Engineering
+    # degree can back this line.
+    ("Previous Computer Science/Software Engineering internship experience",
+     ["Computer", "Science", "Software", "Engineering"]),
+    ("Experience with C/C++ or Rust", ["C++", "Rust"]),
+])
+def test_calendar_words_and_joined_words_are_not_names(line, expected):
+    assert jobhunt.salient_terms(line) == expected
+
+
+def test_the_postings_own_company_and_location_are_not_requirements(profile):
+    """"In office in Austin, TX" says where the job is; nothing in a profile
+    backs a city, and the report called it a gap."""
+    job = Job(title="Software Engineer Intern", company="Cloudflare",
+              location="Austin, US",
+              requirements=["In office 3-5 days a week in Austin, TX.",
+                            "Experience with Cloudflare Workers."])
+    found = jobhunt.score(job, profile)
+    assert "Austin" not in found.gaps
+    assert "Cloudflare" not in found.gaps
+    assert "Workers" in found.gaps          # the product is still asked for
+
+
+def test_a_skill_the_candidate_lists_outranks_noise_and_the_company(profile):
+    """Spring is a season and a framework; MongoDB is the company hiring and
+    the database it asks for. Someone who lists them is asked about them."""
+    listed = jobhunt.clone(profile, skills=["Spring", "MongoDB"])
+    job = Job(title="Engineer", company="MongoDB",
+              requirements=["Experience with Spring", "Experience with MongoDB"])
+    found = jobhunt.score(job, listed)
+    assert [r.status for r in found.required] == [EVIDENCED, EVIDENCED]
+
+
+def test_a_calendar_word_in_the_summary_is_not_parroting(profile):
+    """Writing "Summer 2027" in a CV summary tripped the parroting wire,
+    because the posting asked for a Summer internship and no profile
+    contains the word."""
+    job = Job(title="Intern", company="Scale AI",
+              requirements=["Available for a Summer 2027 internship"])
+    document = jobhunt.tailor(profile, job, {"summary": "Applying for Summer 2027.",
+                                             "roles": [{"index": 0}], "projects": [],
+                                             "skills": []})
+    found = jobhunt.score(job, profile, document, when="after")
+    assert not found.parroting
+
+
+def test_sentence_initial_words_are_not_gaps(profile):
+    job = Job(title="Engineer", requirements=["Build data pipelines in Python",
+                                              "Own the on-call rota"])
+    found = jobhunt.score(job, profile)
+    assert not {"Build", "Own"} & set(found.gaps)
+    assert found.required[0].status == EVIDENCED       # Python, and backed
+    assert found.required[1].status == NOT_CHECKABLE   # nothing named at all
+
+
+def test_tools_that_open_a_line_are_found_in_the_bullets(profile):
+    """The tools are only in bullets, so nothing but the line says they are
+    names - and the posting's own prose uses go, react and swift as the
+    ordinary words they also are."""
+    doer = jobhunt.clone(profile, skills=[], projects=[], experience=[Role(
+        position="Engineer", company="Acme", start="2020", end="2024",
+        bullets=["Ran Linux hosts and Go services on Kubernetes, built with Terraform.",
+                 "Shipped React and Vue front ends, designed in Figma.",
+                 "Wrote a Swift app for iOS."])])
+    job = Job(title="Engineer",
+              description="We move fast and go deep. When incidents happen we react "
+                          "quickly. Spark curiosity, swift decisions.",
+              requirements=["Linux administration", "Go services at scale",
+                            "Figma for design", "Terraform to manage infrastructure",
+                            "React for building UIs",
+                            "Kubernetes for container orchestration",
+                            "Swift for iOS apps", "Go or Rust experience",
+                            "Experience with React or Vue",
+                            "Own the ingestion pipelines", "Mentor junior engineers",
+                            "Excellent Problem Solving Skills"])
+    found = jobhunt.score(job, doer)
+    assert [r.status for r in found.required] == [EVIDENCED] * 9 + [NOT_CHECKABLE] * 3
+    assert not found.gaps
+
+
+def test_a_title_case_line_names_nothing(profile):
+    """Title-cased requirement lines used to report Problem and Solving as gaps."""
+    job = Job(title="Engineer", requirements=["Excellent Problem Solving Skills"])
+    found = jobhunt.score(job, profile)
+    assert found.required[0].status == NOT_CHECKABLE
+    assert not found.gaps
+
+
+def test_a_tool_the_candidate_lists_is_a_name_wherever_it_sits(profile):
+    """Airflow is only on one role's skills list, and it opens the line."""
+    job = Job(title="Engineer", requirements=["Airflow experience in production"])
+    found = jobhunt.score(job, profile)
+    assert found.required[0].status == EVIDENCED
+
+
 def test_a_quantity_adjective_is_not_a_requirement(profile):
     """"Significant experience..." asks for experience, not for Significant."""
     wordy = jobhunt.clone(JOB, **{"requirements": [
