@@ -301,6 +301,15 @@ def test_tailoring_with_nothing_to_tailor_from_says_so(work):
     assert "Traceback" not in done.stderr
 
 
+def test_coaching_runs_before_a_posting_is_parsed(work):
+    """Coaching reads the profile alone; a run with no job.yaml is enough."""
+    run_dir = Path(work) / "jobhunt" / "runs" / "2026-01-01-zeta"
+    run_dir.mkdir(parents=True)
+    done = run("jobhunt-tailor", "--coach", "--run", run_dir, work=work)
+    assert "Before tailoring" in done.stdout
+    assert emitted(done)["bullets"] == 3
+
+
 def test_a_run_outside_the_runs_directory_is_refused(work):
     done = run("jobhunt-fit", "--run", "/etc", "--when", "before",
                work=work, check=False)

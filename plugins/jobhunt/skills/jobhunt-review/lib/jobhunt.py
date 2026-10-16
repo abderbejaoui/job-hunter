@@ -1734,8 +1734,53 @@ def tailor(profile, job, data):
         language=job.language,
     )
 
+    # The shape of the page, as a reader meets it: said here, where the
+    # rewording that fixes it happens, and read again by the critique.
+    issues.extend(layout_issues(document))
+
     document.issues = issues
     return document
+
+
+#: What a reader gets through. A summary past this is skimmed, not read.
+SUMMARY_WORDS = 60
+#: Past this a skills list stops being read and starts being scrolled.
+MANY_SKILLS = 15
+
+
+def layout_issues(document):
+    """What a reader notices about the shape of the page before judging a word
+    of it. Warnings and notes, never blocks: the fix is in the rewording, and
+    the person may disagree with every one of them."""
+    found = []
+    summary_words = len(str(document.summary).split())
+    if summary_words > SUMMARY_WORDS:
+        found.append(Issue("summary", WARNING,
+                           f"The summary is {summary_words} words. Two sentences is what "
+                           "gets read."))
+    for i, role in enumerate(document.experience):
+        # The review's own line, so the two never disagree about one role.
+        if len(role.bullets) > MANY_BULLETS:
+            found.append(Issue(f"experience[{i}]", WARNING,
+                               f"{len(role.bullets)} bullets - past {MANY_BULLETS} a role reads "
+                               "as a job description. Keep the ones this posting cares about."))
+        for j, bullet in enumerate(role.bullets):
+            words_in = len(bullet.split())
+            if words_in > LONG_BULLET:
+                found.append(Issue(f"experience[{i}].bullets[{j}]", INFO,
+                                   f"{words_in} words - two sentences doing one sentence's "
+                                   "work."))
+            opener = weak_opener(bullet)
+            if opener:
+                found.append(Issue(f"experience[{i}].bullets[{j}]", INFO,
+                                   f"Starts with {opener!r} - a duty, not a result. Start "
+                                   "with the verb."))
+    if len(document.skills) > MANY_SKILLS:
+        found.append(Issue("skills", INFO,
+                           f"{len(document.skills)} skills listed. Past {MANY_SKILLS} a list "
+                           "stops being read; lead with what this posting asks for and cut "
+                           "the rest."))
+    return found
 
 
 def write_letter(profile, job, data):
@@ -4424,8 +4469,11 @@ def _clean(bad, whole):
     return 0.0 if not whole else 1 - bad / whole
 
 
-def review(profile):
-    """Measure a CV against itself. Never raises; an empty profile scores zero."""
+def review(profile, cap=6):
+    """Measure a CV against itself. Never raises; an empty profile scores zero.
+
+    `cap` is how many lines each dimension names - six is what a page can
+    carry. Coaching passes None, because it speaks to every bullet."""
     found = Review(name=profile.personal.full_name,
                    roles=len(profile.experience))
     bullets = [(f"experience[{i}].bullets[{j}]", line)
@@ -4455,7 +4503,7 @@ def review(profile):
         tally=f"{len(quantified)} of {len(lines)} lines carry a figure",
         advice=ADVICE["evidence"],
         findings=[Finding(where, "No figure", b, ask_about(b))
-                  for where, b in misses[:6]]))
+                  for where, b in misses[:cap]]))
 
     # --- openers -----------------------------------------------------------
     weak = [(where, b, weak_opener(b)) for where, b in lines if weak_opener(b)]
@@ -4467,7 +4515,7 @@ def review(profile):
         advice=ADVICE["openers"],
         findings=[Finding(where, f"Starts with {phrase!r}", b,
                           "Delete the opener and start with the verb.")
-                  for where, b, phrase in weak[:6]]))
+                  for where, b, phrase in weak[:cap]]))
 
     # --- order -------------------------------------------------------------
     # A reader stops early whatever the job, so the strongest line in a role
@@ -4560,9 +4608,46 @@ def review(profile):
         advice=ADVICE["shape"],
         tally=(f"{len(problems)} bullets or roles are the wrong size"
                if problems else "every bullet and role is a readable length"),
-        findings=problems[:6]))
+        findings=problems[:cap]))
 
     return found
+
+
+def coaching(profile):
+    """Per bullet, what a reader will miss and the question whose answer fixes it.
+
+    Written for the agent to read to the person before tailoring. A figure is
+    something to ask for, never to guess: the answer goes into the profile
+    first, and only then into a CV. Every note is a finding of the review's,
+    uncapped, so the two cannot say different things about the same line.
+    """
+    notes, unquantified = {}, set()
+    for d in review(profile, cap=None).dimensions:
+        for f in d.findings:
+            if d.name == "evidence":
+                unquantified.add(f.where)
+                note = "no figure -> ask: " + f.ask
+            else:
+                note = " - ".join(x for x in (f.what, f.ask) if x)
+            notes.setdefault(f.where, []).append(note)
+
+    out = ["Before tailoring: what each bullet is missing, and what to ask.", ""]
+    asked = 0
+    for i, role in enumerate(profile.experience):
+        out.append(f"[{i}] " + " - ".join(x for x in (role.position, role.company) if x))
+        for j, bullet in enumerate(role.bullets):
+            where = f"experience[{i}].bullets[{j}]"
+            asked += where in unquantified
+            mine = notes.get(where, [])
+            out.append(("  ok  " if not mine else "  --  ") + _excerpt(bullet, 88))
+            out += [f"        {note}" for note in mine]
+        out.append("")
+    summary_words = len(str(profile.summary).split())
+    if summary_words > SUMMARY_WORDS:
+        out += [f"Summary: {summary_words} words. Two sentences is what gets read.", ""]
+    out.append(f"{asked} bullet(s) carry no figure. Ask the person each question, put the "
+               "answers in profile.yaml, then tailor. Never fill a number in yourself.")
+    return "\n".join(out)
 
 
 #: What the total means, in words. Deliberately not a grade: the bands say what
