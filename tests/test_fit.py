@@ -111,6 +111,36 @@ def test_lifting_it_into_the_summary_shows_it(profile):
     assert found.required[0].shown_in_skim
 
 
+def test_the_skills_list_is_below_the_fold(profile):
+    """Every renderer puts Skills after Experience, Projects and Education. A
+    term that lives only in the skills list is on the page but not in the
+    first screenful - and counting it meant tailoring could never be seen to
+    buy anything for anyone who lists their tools. SQL is only in the fixture's
+    skills list; lifting it into the summary is what shows it."""
+    sql = Job(title="Engineer", requirements=["Strong SQL"])
+    before = jobhunt.score(sql, profile)
+    assert before.required[0].present_anywhere
+    assert not before.required[0].shown_in_skim
+    lifted = jobhunt.tailor(profile, sql, {"summary": "Data engineer who writes the SQL.",
+                                           "roles": [{"index": 0}], "projects": [],
+                                           "skills": []})
+    after = jobhunt.score(sql, profile, lifted, when="after")
+    assert after.required[0].shown_in_skim
+    assert after.shown == before.shown + 1
+    assert after.evidenced == before.evidenced
+
+
+def test_the_skim_is_every_title_and_no_projects(profile):
+    """What fit's SKILL.md tells the agent the first screenful is. The bullet
+    budget caps bullets only; projects print after Experience."""
+    document = jobhunt.clone(profile)
+    document.projects = [jobhunt.Project(name="Streamer", tech=["Kafka"])]
+    skim = jobhunt._skim(document, 0)
+    assert "Data Engineer Acme" in skim and "Analyst Beta" in skim
+    assert "Cut ETL" not in skim
+    assert "Kafka" not in skim
+
+
 def test_dropping_evidence_entirely_is_a_regression(profile):
     stripped = jobhunt.clone(profile)
     stripped.experience = []

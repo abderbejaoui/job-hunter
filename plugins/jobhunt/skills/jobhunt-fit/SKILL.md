@@ -21,8 +21,16 @@ front of a reader in the first screenful? This is the one tailoring moves, and
 moving it is the whole job: the evidence was already there, buried at bullet
 nine.
 
-So a CV that pastes the posting's requirements into its summary scores **zero**
-extra and is told off for it - that appears as `parroting`.
+The first screenful is the headline, the summary, every role's title, and the
+first ten bullets in the order the page prints them. Projects and the skills
+list are not in it - every layout puts Skills below Education - so a tool that
+appears only there is *present* but not *shown*. Naming it in the summary or
+an opening bullet is what moves the number.
+
+That only counts for what the profile can back. A summary that names tools the
+profile genuinely backs does count as shown - a reader sees it first. Pasting
+in requirements the profile *cannot* back scores **zero** extra and is told off
+for it - that appears as `parroting`.
 
 ```bash
 python3 fit.py --run <run> --when before     # before tailoring

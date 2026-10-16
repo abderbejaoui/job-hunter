@@ -812,8 +812,10 @@ def words(text):
 #               front of a reader in the first screenful? This is the one
 #               tailoring moves, and it is what tailoring is for.
 #
-# Copying a requirement's words into a summary therefore earns nothing. It earns
-# a line in `parroting` instead, which is the tripwire for exactly that.
+# Copying a requirement's words into a summary therefore earns nothing unless
+# the profile backs them. What it cannot back earns a line in `parroting`
+# instead, the tripwire for exactly that; what it can back is shown, because
+# naming real evidence where a reader looks first is what tailoring is for.
 #
 # No single 0-100 score, deliberately. One number invites optimising the number,
 # and optimising this one means parroting. Counts, named, disjoint.
@@ -1217,8 +1219,21 @@ def mentions_any(body, terms):
 
 
 def _skim(document, bullets):
-    """The first screenful: who they are, what they claim, the opening bullets."""
-    parts = [document.personal.headline, document.summary, " ".join(document.skills)]
+    """The first screenful, as the page lays it out: the headline, the summary,
+    every role's title, and the opening bullets in page order until `bullets`
+    of them have been read. The budget caps bullets only - a role whose bullets
+    fall past it still has its title counted, because a skimmer reads titles.
+
+    Not the projects, and not the skills list. Every renderer here prints
+    Projects after Experience and Skills after Education, so a term that lives
+    only in either is on the page but below the fold. Counting the skills list
+    as shown meant `shown` could never move for anyone who lists their tools -
+    which is everyone - and the before-and-after comparison this tool is built
+    around read +0 on every real CV it was tried on. The way to show a skill
+    is to name it in the summary or an opening bullet, which is what
+    tailoring is for.
+    """
+    parts = [document.personal.headline, document.summary]
     seen = 0
     for role in document.experience:
         parts.append(f"{role.position} {role.company}")
