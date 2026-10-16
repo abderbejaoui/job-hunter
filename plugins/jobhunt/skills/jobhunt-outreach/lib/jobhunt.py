@@ -3820,11 +3820,11 @@ def run_cli(work, argv=None):
 #: What each dimension is worth. Weighted by how much a reader actually
 #: notices, not by how easy it was to measure.
 WEIGHTS = {
-    "evidence": 30,     # bullets that carry a figure
-    "openers": 15,      # bullets that start by describing a duty
+    "evidence": 30,     # lines that carry a figure
+    "openers": 15,      # lines that start by describing a duty
     "order": 15,        # the strongest line, where a reader will reach it
     "complete": 15,     # the fields an employer needs to act
-    "shown": 15,        # skills the bullets actually demonstrate
+    "shown": 15,        # skills the work actually demonstrates
     "shape": 10,        # length, bulk, and roles with nothing under them
 }
 
@@ -3897,7 +3897,7 @@ _ASK = [(re.compile(pattern, re.IGNORECASE), question)
 
 #: What to do about a whole dimension, said once rather than once per line.
 ADVICE = {
-    "evidence": ("Every bullet has to answer 'so what'. The figures are almost "
+    "evidence": ("Every line has to answer 'so what'. The figures are almost "
                  "always in your head and not on the page - answer the "
                  "questions below and put the answer in the line."),
     "openers": ("Cut the opener and start with the verb. 'Responsible for the "
@@ -3955,8 +3955,11 @@ class Review:
     dimensions: list = field(default_factory=list)
     bullets: int = 0
     roles: int = 0
+    #: Project descriptions read alongside the bullets - only quantified ones.
+    projects: int = 0
 
-    SHAPE = {"dimensions": (list, Dimension), "bullets": "raw", "roles": "raw"}
+    SHAPE = {"dimensions": (list, Dimension), "bullets": "raw", "roles": "raw",
+             "projects": "raw"}
 
     @property
     def score(self):
@@ -4022,33 +4025,46 @@ def review(profile):
     """Measure a CV against itself. Never raises; an empty profile scores zero."""
     found = Review(name=profile.personal.full_name,
                    roles=len(profile.experience))
-    every = [(f"experience[{i}]", j, line)
-             for i, role in enumerate(profile.experience)
-             for j, line in enumerate(role.bullets)]
-    found.bullets = len(every)
+    bullets = [(f"experience[{i}].bullets[{j}]", line)
+               for i, role in enumerate(profile.experience)
+               for j, line in enumerate(role.bullets)]
+    found.bullets = len(bullets)
+    # A student's figures live in project descriptions - "cut validation loss
+    # 23%" - and a review that read only role bullets scored such a CV as
+    # carrying no evidence at all. But "My editor and shell setup." is a fine
+    # project line that no reader expects a figure in, and counting it cost an
+    # experienced CV half its evidence. So a project joins the lines only once
+    # it carries a figure: a plain one changes nothing, a quantified one can
+    # only lift evidence, and its opener is judged like any bullet's. Order
+    # and shape stay about roles, which is what they measure.
+    projects = [(f"projects[{i}].description", project.description)
+                for i, project in enumerate(profile.projects)
+                if is_quantified(project.description)]
+    found.projects = len(projects)
+    lines = bullets + projects
 
     # --- evidence ----------------------------------------------------------
-    quantified = [row for row in every if is_quantified(row[2])]
-    misses = [row for row in every if not is_quantified(row[2])]
+    quantified = [row for row in lines if is_quantified(row[1])]
+    misses = [row for row in lines if not is_quantified(row[1])]
     found.dimensions.append(Dimension(
         name="evidence", out_of=WEIGHTS["evidence"],
-        points=round(WEIGHTS["evidence"] * _share(len(quantified), len(every))),
-        tally=f"{len(quantified)} of {len(every)} bullets carry a figure",
+        points=round(WEIGHTS["evidence"] * _share(len(quantified), len(lines))),
+        tally=f"{len(quantified)} of {len(lines)} lines carry a figure",
         advice=ADVICE["evidence"],
-        findings=[Finding(f"{w}.bullets[{j}]", "No figure", b, ask_about(b))
-                  for w, j, b in misses[:6]]))
+        findings=[Finding(where, "No figure", b, ask_about(b))
+                  for where, b in misses[:6]]))
 
     # --- openers -----------------------------------------------------------
-    weak = [(w, j, b, weak_opener(b)) for w, j, b in every if weak_opener(b)]
+    weak = [(where, b, weak_opener(b)) for where, b in lines if weak_opener(b)]
     found.dimensions.append(Dimension(
         name="openers", out_of=WEIGHTS["openers"],
-        points=round(WEIGHTS["openers"] * _clean(len(weak), len(every))),
-        tally=(f"{len(weak)} of {len(every)} bullets open by describing a duty"
-               if weak else "every bullet opens with something you did"),
+        points=round(WEIGHTS["openers"] * _clean(len(weak), len(lines))),
+        tally=(f"{len(weak)} of {len(lines)} lines open by describing a duty"
+               if weak else "every line opens with something you did"),
         advice=ADVICE["openers"],
-        findings=[Finding(f"{w}.bullets[{j}]", f"Starts with {phrase!r}", b,
+        findings=[Finding(where, f"Starts with {phrase!r}", b,
                           "Delete the opener and start with the verb.")
-                  for w, j, b, phrase in weak[:6]]))
+                  for where, b, phrase in weak[:6]]))
 
     # --- order -------------------------------------------------------------
     # A reader stops early whatever the job, so the strongest line in a role
@@ -4100,7 +4116,7 @@ def review(profile):
     # A skill nobody can see you use is a word in a list. This is the same
     # evidence lookup the fit score uses, turned on the CV's own claims.
     body = "\n".join([profile.summary, p.headline]
-                     + [b for _, _, b in every]
+                     + [b for _, b in bullets]
                      + [f"{r.position} {r.company} {r.industry}"
                         for r in profile.experience]
                      + [f"{x.name} {x.description} {' '.join(x.tech)}"
@@ -4130,12 +4146,11 @@ def review(profile):
             problems.append(Finding(f"experience[{i}]",
                                     f"{len(role.bullets)} bullets - past "
                                     f"{MANY_BULLETS} it reads as a job description"))
-    for w, j, b in every:
+    for where, b in bullets:
         if len(b.split()) > LONG_BULLET:
-            problems.append(Finding(f"{w}.bullets[{j}]",
-                                    f"{len(b.split())} words - two sentences "
-                                    "doing one sentence's work", b))
-    units = len(profile.experience) + len(every)
+            problems.append(Finding(where, f"{len(b.split())} words - two sentences "
+                                           "doing one sentence's work", b))
+    units = len(profile.experience) + len(bullets)
     found.dimensions.append(Dimension(
         name="shape", out_of=WEIGHTS["shape"],
         points=round(WEIGHTS["shape"] * _clean(len(problems), units)),
@@ -4188,7 +4203,9 @@ def review_page(found):
     """The review as something a person reads: score, then what to do."""
     out = [f"CV review - {found.name or 'your CV'}", "",
            f"{found.score} / {found.out_of}   {band(found.score, found.out_of)}",
-           f"{found.roles} roles, {found.bullets} bullets", ""]
+           f"{found.roles} roles, {found.bullets} bullets"
+           + (f", {found.projects} projects with a figure" if found.projects
+              else ""), ""]
 
     for d in sorted(found.dimensions, key=lambda d: _share(d.points, d.out_of)):
         bar = "#" * round(10 * _share(d.points, d.out_of))

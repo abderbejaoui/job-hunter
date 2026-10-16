@@ -490,6 +490,57 @@ def test_a_perfect_cv_scores_full_marks():
     assert found.score == found.out_of == 100, jh.review_page(found)
 
 
+def test_a_projects_figure_counts_as_evidence():
+    """A student's numbers live in project descriptions. A review that read
+    only role bullets scored a CV with "23%" and "2.4x" in its projects as
+    carrying no evidence at all."""
+    profile = jh.Profile(
+        experience=[jh.Role(company="A", bullets=["Built the ingestion service."])],
+        projects=[jh.Project(name="tune", description="Fine-tuned a 9B model with "
+                             "LoRA, cutting validation loss by 23%."),
+                  jh.Project(name="eval", description="Evaluated agent frameworks.")])
+    found = jh.review(profile)
+    evidence = next(d for d in found.dimensions if d.name == "evidence")
+    assert evidence.points == 15, evidence.tally          # 1 of 2 lines
+    assert "2 lines" in evidence.tally
+    # The plain project is neither counted nor flagged.
+    assert {f.where for f in evidence.findings} == {"experience[0].bullets[0]"}
+    assert "1 projects with a figure" in jh.review_page(found)
+
+
+def test_plain_projects_cost_an_experienced_cv_nothing():
+    """A project line nobody expects a figure in must not drag down a CV whose
+    bullets all carry one. Counting them took this CV from 30 to 15 evidence."""
+    role = jh.Role(company="A", start="2019", bullets=[
+        "Cut deploy time from 40 minutes to 6.",
+        "Moved 12 services onto Kubernetes.",
+        "Wrote the on-call runbook used by 30 engineers."])
+    plain = [jh.Project(name=n, description=d) for n, d in [
+        ("dotfiles", "My editor and shell setup."),
+        ("blog", "A static site I write on."),
+        ("talks", "Slides from meetups.")]]
+    bare = jh.review(jh.Profile(experience=[role]))
+    found = jh.review(jh.Profile(experience=[role], projects=plain))
+    assert found.score == bare.score, jh.review_page(found)
+    evidence = next(d for d in found.dimensions if d.name == "evidence")
+    assert evidence.points == evidence.out_of, evidence.tally
+    assert found.projects == 0
+
+
+def test_order_and_shape_still_measure_roles_only():
+    """A project description can be two sentences; only role bullets are held
+    to the bullet length, and only roles can lead with their strongest line."""
+    long = "word " * 40
+    profile = jh.Profile(
+        experience=[jh.Role(company="A", bullets=["Cut runtime 35%."])],
+        projects=[jh.Project(name="x", description=long)])
+    found = jh.review(profile)
+    shape = next(d for d in found.dimensions if d.name == "shape")
+    order = next(d for d in found.dimensions if d.name == "order")
+    assert shape.points == shape.out_of, shape.tally
+    assert order.points == order.out_of, order.tally
+
+
 def test_an_empty_profile_scores_nothing_and_does_not_raise():
     found = jh.review(jh.Profile())
     assert found.score == 0
