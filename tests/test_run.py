@@ -301,10 +301,10 @@ def test_tailoring_with_nothing_to_tailor_from_says_so(work):
     assert "Traceback" not in done.stderr
 
 
-def test_coaching_runs_before_a_selection_exists(work):
+def test_coaching_runs_before_a_posting_is_parsed(work):
+    """Coaching reads the profile alone; a run with no job.yaml is enough."""
     run_dir = Path(work) / "jobhunt" / "runs" / "2026-01-01-zeta"
     run_dir.mkdir(parents=True)
-    jh.save(jh.build(jh.Job, JOB), run_dir / "job.yaml")
     done = run("jobhunt-tailor", "--coach", "--run", run_dir, work=work)
     assert "Before tailoring" in done.stdout
     assert emitted(done)["bullets"] == 3

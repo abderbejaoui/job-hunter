@@ -36,9 +36,9 @@ def work(argv):
                      "the profile and the posting first, or --coach")
 
     run = jh.run_dir(args.run)
-    job = jh.load(jh.Job, jh.require(run, "job.yaml"))
     profile = jh.load(jh.Profile, args.profile or jh.profile_path())
 
+    # Coaching reads the profile alone, so it runs before a posting is parsed.
     if args.coach:
         page = jh.coaching(profile)
         print(page)
@@ -50,6 +50,7 @@ def work(argv):
                          "then --brief"})
         return jh.OK
 
+    job = jh.load(jh.Job, jh.require(run, "job.yaml"))
     if args.brief:
         print(jh.profile_block(profile))
         print("\n---\n")

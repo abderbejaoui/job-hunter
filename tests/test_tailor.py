@@ -160,17 +160,16 @@ def test_a_placeholder_in_a_letter_is_a_warning(profile, job):
 # --- the shape of the page ------------------------------------------------
 
 def test_the_shape_of_the_page_is_reported_but_never_blocks(profile, job):
+    """What the model picks is cut to eight bullets a role, so only a role the
+    model left unselected - shown as written - can pass the review's line."""
     long = "word " * 40
-    profile.experience[0].bullets = [f"Did thing {i}." for i in range(8)]
+    profile.experience[0].bullets = ["Responsible for the pipelines.", long.strip(),
+                                     *[f"Did thing {i}." for i in range(7)]]
     document = jobhunt.tailor(profile, job, {
-        "summary": "long " * 70,
-        "roles": [{"index": 0, "bullets": [
-            "Responsible for the pipelines.", long.strip(),
-            *[f"Did thing {i}." for i in range(6)]]}],
-        "projects": [], "skills": []})
+        "summary": "long " * 70, "roles": [], "projects": [], "skills": []})
     said = {(i.path, i.severity) for i in document.issues}
     assert ("summary", jobhunt.WARNING) in said
-    assert ("experience[0]", jobhunt.WARNING) in said                 # 8 bullets
+    assert ("experience[0]", jobhunt.WARNING) in said                 # 9 bullets
     assert ("experience[0].bullets[0]", jobhunt.INFO) in said         # the opener
     assert ("experience[0].bullets[1]", jobhunt.INFO) in said         # the length
     assert not document.blocking
@@ -188,10 +187,19 @@ def test_coaching_asks_the_review_s_question_for_each_bullet_without_a_figure():
         bullets=["Responsible for the CI/CD pipelines.", "Cut ETL runtime by 35%."])])
     page = jobhunt.coaching(profile)
     assert "How long did a release take before this, and after?" in page
-    assert "opens with 'responsible for'" in page
+    assert "Starts with 'responsible for'" in page
     assert "ok  Cut ETL runtime by 35%." in page
     assert "1 bullet(s) carry no figure" in page
     assert "Never fill a number in yourself" in page
+
+
+def test_coaching_speaks_to_every_bullet_not_the_review_s_first_six():
+    """The review page names six lines per dimension; coaching asks about all."""
+    profile = jobhunt.Profile(experience=[jobhunt.Role(
+        company="Acme", bullets=[f"Wrote the runbook for service {c}." for c in "ABCDEFGH"])])
+    page = jobhunt.coaching(profile)
+    assert "8 bullet(s) carry no figure" in page
+    assert page.count("no figure -> ask:") == 8
 
 
 def test_the_document_carries_the_job_it_was_made_for(profile, job):

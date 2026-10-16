@@ -70,15 +70,16 @@ of the page comes from.
 | Lead with the outcome the bullet already states: "Cut ETL runtime 35% by rewriting the dbt models" | Add an outcome it does not state |
 | Start with the verb: "Ran the on-call rotation" | "Responsible for the on-call rotation" |
 | Cut filler: "using various technologies", "in a fast-paced environment" | Cut a fact |
-| Group the tools: "in Python and TypeScript (FastAPI, NestJS, React)" | Add a tool the profile does not list |
-| Keep a bullet to two lines and a role to three to five bullets | Keep every bullet because it is true |
+| Group the tools the bullet names: "Python (FastAPI), NestJS, PostgreSQL, React and Next.js" | Add one it does not name - NestJS implies TypeScript, and the bullet never says so |
+| Keep a bullet to two lines and a role to eight bullets at most - the ones this posting cares about | Keep every bullet because it is true |
 | Write a two-sentence summary that names the role and the two strongest facts | Write a paragraph |
 
 The test of a rewording: could the person read the new bullet and the old one
 and say "yes, that is the same thing I did"? If it took a number, a tool, an
 employer, a title or a date the profile does not hold to get there, it is not
-a rewording. The tool reports every figure it cannot find in the profile, and
-every bullet that still opens with a duty; read both before you export.
+a rewording. Nothing checks a figure for you, so that test is yours. The tool
+does report every bullet that still opens with a duty or runs long, and a role
+past eight bullets; read those before you export.
 
 ## The rules
 
