@@ -130,6 +130,17 @@ def test_the_skills_list_is_below_the_fold(profile):
     assert after.evidenced == before.evidenced
 
 
+def test_the_skim_is_every_title_and_no_projects(profile):
+    """What fit's SKILL.md tells the agent the first screenful is. The bullet
+    budget caps bullets only; projects print after Experience."""
+    document = jobhunt.clone(profile)
+    document.projects = [jobhunt.Project(name="Streamer", tech=["Kafka"])]
+    skim = jobhunt._skim(document, 0)
+    assert "Data Engineer Acme" in skim and "Analyst Beta" in skim
+    assert "Cut ETL" not in skim
+    assert "Kafka" not in skim
+
+
 def test_dropping_evidence_entirely_is_a_regression(profile):
     stripped = jobhunt.clone(profile)
     stripped.experience = []

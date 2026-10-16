@@ -58,9 +58,11 @@ python3 tailor.py selection.json --run <run>
 - **The summary may name the company and the role.** Nothing else new.
 - **Lead with what the posting asks for**, where the profile backs it. That is
   the entire mechanism by which `shown` improves, and it is legitimate: you are
-  surfacing evidence, not creating it. Do it in the summary
-  and the first bullets: the skills list sits below the fold and does not
-  count as shown.
+  surfacing evidence, not creating it. Do it in the summary and the first
+  bullets: a backed tool named there counts as shown, while one that is only
+  in the skills list or a project sits below the fold and does not. Naming
+  something the profile cannot back earns nothing and is flagged as
+  `parroting`.
 
 ## Exit 2
 
