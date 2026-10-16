@@ -1,7 +1,7 @@
 """The skills as shipped: do they hold together, and does each run alone?
 
 Everything here is about the packaging rather than the behaviour. The library
-is tested elsewhere; what these check is that eleven copies of it stay in step,
+is tested elsewhere; what these check is that ten copies of it stay in step,
 that every SKILL.md says something true about the script beside it, and that a
 skill installed on its own - no repo, no siblings, nothing on sys.path - still
 works.
@@ -179,6 +179,17 @@ def test_a_manifest_that_counts_the_skills_counts_the_ones_that_exist(manifest):
     for word, number in _COUNTS.items():
         if re.search(rf"\b{word} skills\b", text):
             assert number == len(ALL), f"{manifest} says {word}, there are {len(ALL)}"
+
+
+def test_the_whole_flow_counts_the_skills_it_runs():
+    """It said "the other eleven" with ten others, for the same reason: a
+    typed count does not notice a skill leaving."""
+    import re
+    text = (SKILLS / "jobhunt" / "SKILL.md").read_text(encoding="utf-8").lower()
+    said = re.search(r"\bthe other (\w+) jobhunt skills\b", text)
+    assert said, "the jobhunt SKILL.md no longer says how many it runs"
+    assert _COUNTS.get(said.group(1)) == len(ALL) - 1, \
+        f"it says {said.group(1)}, there are {len(ALL) - 1} others"
 
 
 def test_the_plugin_version_matches_the_library():

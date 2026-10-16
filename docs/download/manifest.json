@@ -1,13 +1,13 @@
 {
   "jobhunt": {
     "file": "jobhunt.zip",
-    "bytes": 4197,
-    "sha256": "07abb68489332a6c"
+    "bytes": 4194,
+    "sha256": "36707142f28f42fe"
   },
   "jobhunt-all": {
     "file": "jobhunt-all.zip",
-    "bytes": 563197,
-    "sha256": "80a815be3608c890"
+    "bytes": 563194,
+    "sha256": "f24848a3f4e53bd3"
   },
   "jobhunt-answer": {
     "file": "jobhunt-answer.zip",
