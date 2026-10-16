@@ -404,8 +404,9 @@ ALLOWED = {
     # sits in a compressed object stream. No PDF library, still.
     "zlib",
     # For a board's public JSON API and nothing else: the browser-driven fetch
-    # exists to get past walls, and there is no wall in front of those.
-    "urllib",
+    # exists to get past walls, and there is no wall in front of those. `http`
+    # only so a connection cut off mid-answer is caught by name.
+    "urllib", "http",
 }
 
 

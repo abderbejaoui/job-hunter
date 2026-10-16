@@ -37,23 +37,26 @@ def work(argv):
     boards, found = [], []
     for given in args.boards:
         # A bare token could be either host; the first that answers is the one.
-        last = None
+        # If neither does, say why for both: Greenhouse being down and Lever
+        # not knowing the name are different problems.
+        failed = []
         for board in jh.parse_board(given):
             try:
                 found += jh.openings(board)
             except jh.FetchError as exc:
-                last = exc
+                failed.append(f"{board.label}: {exc}")
                 continue
             boards.append(board)
             break
         else:
-            raise last
+            raise jh.FetchError("\n".join(failed))
 
     if args.title:
         wanted = args.title.lower()
         found = [o for o in found if wanted in o.title.lower()]
-    ranked = jh.leads(found, profile, at_least=args.min)[:args.limit]
-    page = jh.leads_page(ranked, boards, len(found))
+    ranked = jh.leads(found, profile, at_least=args.min)
+    shown = ranked[:args.limit]
+    page = jh.leads_page(ranked, boards, len(found), at_least=args.min, limit=args.limit)
 
     where = jh.found_dir()
     stem = f"{jh.today()}-" + "-".join(b.token for b in boards)[:60]
@@ -61,12 +64,12 @@ def work(argv):
     # The posting text stays in memory: the file is the list, not the postings.
     jh.write_json(where, f"{stem}.json",
                   [{**jh.asdict(lead), "opening": {**jh.asdict(lead.opening), "text": ""}}
-                   for lead in ranked])
+                   for lead in shown])
 
     jh.emit({"boards": [b.label for b in boards], "openings": len(found),
-             "listed": len(ranked), "page": str(written),
+             "matched": len(ranked), "listed": len(shown), "page": str(written),
              "top": [{"title": lead.opening.title, "url": lead.opening.url,
-                      "names": lead.score} for lead in ranked[:5]],
+                      "names": lead.score} for lead in shown[:5]],
              "next": "read the page with the person, then read the posting they pick"})
     print(page, file=sys.stderr)
     return jh.OK

@@ -22,8 +22,13 @@ python3 find.py lever:palantir --title engineer --min 3
 python3 find.py https://job-boards.greenhouse.io/gitlab greenhouse:cloudflare
 ```
 
-It writes `jobhunt/found/<date>-<board>.md` and prints it. Read it with the
-person, and hand the URL they pick to `jobhunt-posting`.
+It writes `jobhunt/found/<date>-<board>.md` and prints it, and beside it
+`<date>-<board>.json`: the same list as data - each opening's title, link,
+location and the skills it names, without the posting text. Read the page with
+the person, and hand the URL they pick to `jobhunt-posting`.
+
+The count at the top is every opening that names at least `--min` of the
+profile's skills; `--limit` (50 by default) only cuts how many are listed.
 
 `--title` is a plain substring, case-insensitive: `intern` also keeps
 "Internal Audit", so `internship` is the tighter filter. `--min` is how many
@@ -35,10 +40,13 @@ The token is the part of the careers URL after the host:
 `boards.greenhouse.io/figma`, `job-boards.greenhouse.io/gitlab`,
 `jobs.lever.co/palantir`. A careers page on a company's own domain usually
 links to one of these - look at any job link on it: `gh_jid=` means
-Greenhouse, `lever.co` means Lever. A bare name (`figma`) is tried on both.
+Greenhouse, `lever.co` means Lever. EU boards (`job-boards.eu.greenhouse.io`,
+`jobs.eu.lever.co`) and Greenhouse embed links (`...?for=figma`) work pasted
+as they are. A bare name (`figma`) is tried on both hosts.
 
-**Exit 1?** The board answered 404 or is not on either host. Check the token.
-Do not guess a different company.
+**Exit 1?** Relay the message. A 404 means the token is wrong or the board is
+on neither host: check it, and do not guess a different company. A 429 or a 5xx
+means the board is busy or down: try again later.
 
 ## What the number means
 

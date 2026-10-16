@@ -26,6 +26,7 @@ import copy
 import dataclasses
 import hashlib
 import html
+import http.client
 import json
 import os
 import re
@@ -4213,17 +4214,24 @@ def check_posting(url, body):
 GREENHOUSE = "greenhouse"
 LEVER = "lever"
 BOARD_KINDS = (GREENHOUSE, LEVER)
+#: Each API, by host and by whether the board is EU-hosted: an EU board lives on
+#: its own hosts. Greenhouse's EU API is boards.eu.greenhouse.io - there is no
+#: boards-api.eu.
 _BOARD_APIS = {
-    GREENHOUSE: "https://boards-api.greenhouse.io/v1/boards/{token}/jobs?content=true",
-    LEVER: "https://api.lever.co/v0/postings/{token}?mode=json",
+    (GREENHOUSE, False): "https://boards-api.greenhouse.io/v1/boards/{token}/jobs?content=true",
+    (GREENHOUSE, True): "https://boards.eu.greenhouse.io/v1/boards/{token}/jobs?content=true",
+    (LEVER, False): "https://api.lever.co/v0/postings/{token}?mode=json",
+    (LEVER, True): "https://api.eu.lever.co/v0/postings/{token}?mode=json",
 }
-#: The addresses people paste, with the board token where each host puts it.
+#: The addresses people paste: group 1 is the EU marker, group 2 the token.
 _BOARD_URLS = (
-    (GREENHOUSE, re.compile(r"(?:boards|job-boards|boards-api)\.greenhouse\.io/"
+    (GREENHOUSE, re.compile(r"(?:boards|job-boards|boards-api)\.(eu\.)?greenhouse\.io/"
                             r"(?:v1/boards/)?([A-Za-z0-9_-]+)", re.IGNORECASE)),
-    (LEVER, re.compile(r"(?:jobs|api)\.lever\.co/(?:v0/postings/)?([A-Za-z0-9_-]+)",
+    (LEVER, re.compile(r"(?:jobs|api)\.(eu\.)?lever\.co/(?:v0/postings/)?([A-Za-z0-9_-]+)",
                        re.IGNORECASE)),
 )
+#: An embedded board's path is the embed script's; the board is in ?for=.
+_EMBED_FOR = re.compile(r"[?&]for=([A-Za-z0-9_-]+)")
 _TOKEN = re.compile(r"^[A-Za-z0-9_-]+$")
 FIND_TIMEOUT = 30.0
 
@@ -4234,10 +4242,16 @@ class Board:
 
     kind: str = GREENHOUSE
     token: str = ""
+    eu: bool = False
 
     @property
     def api(self):
-        return _BOARD_APIS[self.kind].format(token=self.token)
+        return _BOARD_APIS[(self.kind, self.eu)].format(token=self.token)
+
+    @property
+    def company(self):
+        """The token as a name, for when the API gives none - Lever's never does."""
+        return self.token.replace("-", " ").replace("_", " ").title()
 
     @property
     def label(self):
@@ -4260,8 +4274,15 @@ def parse_board(given):
         return [Board(kind.lower(), token)]
     for kind, pattern in _BOARD_URLS:
         found = pattern.search(typed)
-        if found:
-            return [Board(kind, found.group(1))]
+        if not found:
+            continue
+        token = found.group(2)
+        if token.lower() == "embed":
+            named = _EMBED_FOR.search(typed)
+            if not named:
+                break
+            token = named.group(1)
+        return [Board(kind, token, eu=bool(found.group(1)))]
     if _TOKEN.match(typed):
         return [Board(GREENHOUSE, typed), Board(LEVER, typed)]
     raise FetchError(f"{given!r} is not a board this reads. Name one as greenhouse:<token> "
@@ -4270,18 +4291,38 @@ def parse_board(given):
                      "jobs.lever.co/<token>.")
 
 
+#: Said plainly. USER_AGENT poses as Chrome because careers *pages* serve a bot
+#: a stripped copy; these APIs are published for programs to read, so there is
+#: nothing to get past and no reason to pretend.
+API_USER_AGENT = "jobhunt (+https://github.com/mohamedaminehamdi/job-hunter)"
+
+
 def fetch_json(url, timeout=FIND_TIMEOUT):
     """GET a board's public JSON. Raises FetchError saying what to do instead."""
-    request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT,
+    request = urllib.request.Request(url, headers={"User-Agent": API_USER_AGENT,
                                                    "Accept": "application/json"})
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:
             raw = response.read()
     except urllib.error.HTTPError as exc:
-        raise FetchError(f"{url} answered {exc.code}. Check the board token - it is the "
-                         "part of the careers URL after the host.") from exc
+        # Only some 4xx mean the token is wrong. Sending someone to check a good
+        # token while the board is down has them hunting for nothing.
+        if exc.code == 429:
+            advice = "The board is limiting requests - wait a few minutes and try again."
+        elif exc.code >= 500:
+            advice = "The board's API failed on its side - try again later."
+        elif exc.code in (400, 404, 410):
+            advice = "Check the board token - it is the part of the careers URL after the host."
+        else:
+            advice = "The board refused the request."
+        raise FetchError(f"{url} answered {exc.code}. {advice}") from exc
     except (urllib.error.URLError, OSError) as exc:
         raise FetchError(f"Could not reach {url}: {getattr(exc, 'reason', exc)}") from exc
+    except http.client.HTTPException as exc:
+        # IncompleteRead and the like are not OSErrors, so without this line a
+        # connection that broke off mid-answer came out as a traceback.
+        raise FetchError(f"{url} broke off mid-answer ({type(exc).__name__}). "
+                         "Try again in a minute.") from exc
     try:
         return json.loads(raw.decode("utf-8", "replace"))
     except json.JSONDecodeError as exc:
@@ -4317,10 +4358,12 @@ def _greenhouse_openings(payload, board):
         teams = [d.get("name", "") for d in job.get("departments") or [] if isinstance(d, dict)]
         out.append(Opening(
             url=text(job.get("absolute_url")), title=text(job.get("title")),
-            company=text(job.get("company_name")) or board.token,
+            company=text(job.get("company_name")) or board.company,
             location=text((job.get("location") or {}).get("name")),
             team=", ".join(t for t in teams if t), text=body, board=board.label,
-            posted=text(job.get("updated_at"))[:10]))
+            # updated_at moves on every edit, so a year-old posting would read
+            # as new; first_published is when it went up.
+            posted=text(job.get("first_published") or job.get("updated_at"))[:10]))
     return out
 
 
@@ -4336,12 +4379,17 @@ def _lever_openings(payload, board):
                 parts.append(html_to_text(block.get("content") or "")[0])
         parts.append(text(job.get("additionalPlain")))
         categories = job.get("categories") or {}
+        # createdAt is milliseconds since 1970, UTC. A bool passes isinstance as
+        # an int, and a number out of range raises rather than parses.
         created = job.get("createdAt")
         posted = ""
-        if isinstance(created, (int, float)):
-            posted = datetime.fromtimestamp(created / 1000, UTC).date().isoformat()
+        if isinstance(created, (int, float)) and not isinstance(created, bool):
+            try:
+                posted = datetime.fromtimestamp(created / 1000, UTC).date().isoformat()
+            except (OverflowError, OSError, ValueError):
+                posted = ""
         out.append(Opening(
-            url=text(job.get("hostedUrl")), title=text(job.get("text")), company=board.token,
+            url=text(job.get("hostedUrl")), title=text(job.get("text")), company=board.company,
             location=text(categories.get("location")), team=text(categories.get("team")),
             text="\n".join(p for p in parts if p), board=board.label, posted=posted))
     return out
@@ -4388,15 +4436,23 @@ def leads(found, profile, at_least=1):
     return out
 
 
-def leads_page(ranked, boards, total):
-    """The list a person reads: each opening, its link, and the skills it names."""
+def leads_page(ranked, boards, total, at_least=1, limit=None):
+    """The list a person reads: each opening, its link, and the skills it names.
+
+    `ranked` is every lead that cleared `at_least`, before `limit` cuts it, so
+    the count at the top is how many matched, not how many fit on the page.
+    """
     names = ", ".join(b.label for b in boards)
+    shown = ranked if limit is None else ranked[:limit]
+    head = f"{len(ranked)} of {total} openings name at least {at_least} of your listed skills"
+    if len(shown) < len(ranked):
+        head += f"; showing the top {len(shown)}"
     out = [f"# Openings worth reading - {names}", "",
-           f"{len(ranked)} of {total} openings name at least one of your listed skills,",
-           "ranked by how many. This is a filter, not a fit score: read one with",
-           "jobhunt-posting and score it with jobhunt-fit before spending an evening on it.",
+           head + ", ranked by how many.",
+           "This is a filter, not a fit score: read one with jobhunt-posting and",
+           "score it with jobhunt-fit before spending an evening on it.",
            ""]
-    for lead in ranked:
+    for lead in shown:
         o = lead.opening
         out.append(f"## {o.title}" + (f" - {o.company}" if o.company else ""))
         where = " · ".join(x for x in (o.location, o.team, o.posted) if x)
