@@ -457,6 +457,14 @@ def test_an_empty_profile_scores_nothing_and_does_not_raise():
     ("Ran the k8s cluster on EC2.", False),
     ("Ported the service to Python3.", False),
     ("Moved 3 services to S3.", True),
+    # Every digit of the name, not just the first, nor the ones after a dot.
+    ("Routed traffic through Route53.", False),
+    ("Trained the model on an A100.", False),
+    ("Watched p99 on the dashboard.", False),
+    ("Ported the build from x86.", False),
+    ("Upgraded the service to Python3.11.", False),
+    ("Cut p99 latency to 200ms.", True),
+    ("Made the build 1.5x faster.", True),
 ])
 def test_what_counts_as_a_figure(line, quantified):
     assert jh.is_quantified(line) is quantified
