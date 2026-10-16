@@ -170,6 +170,14 @@ def test_overlapping_roles_are_counted_once():
     assert jobhunt.years_held(doubled) == 4
 
 
+def test_months_count_for_what_they_are():
+    """Two short roles in one year used to add up to zero: year arithmetic
+    gave April to August nothing. They are a third of a year."""
+    short = Profile(experience=[Role(position="A", company="X", start="2025-04", end="2025-08"),
+                                Role(position="B", company="Y", start="2025-02", end="2025-04")])
+    assert abs(jobhunt.years_held(short) - 0.5) < 0.01
+
+
 def test_undated_roles_are_not_a_short_career():
     undated = Profile(experience=[Role(position="A", company="X", start="recently")])
     assert jobhunt.years_held(undated) is None
@@ -178,6 +186,17 @@ def test_undated_roles_are_not_a_short_career():
 def test_the_years_gap_is_named_when_it_is_real(profile):
     demanding = jobhunt.clone(JOB, **{"requirements": ["10+ years with dbt"]})
     assert "tailoring cannot close" in jobhunt.score(demanding, profile).years_note
+
+
+def test_the_years_note_never_rounds_up_to_what_was_asked():
+    """Months made 4.9 years print as "about 5", beside "asks for 5" and a
+    gap. Rounded down, the figure and the verdict agree."""
+    five = jobhunt.clone(JOB, **{"requirements": ["5+ years of experience"]})
+    short = Profile(experience=[Role(position="A", company="X", start="2021-11", end="2026-10")])
+    note = jobhunt.score(five, short).years_note
+    assert "about 4.9." in note and "cannot close" in note
+    enough = Profile(experience=[Role(position="A", company="X", start="2021-11", end="2026-11")])
+    assert jobhunt.score(five, enough).years_note.endswith("dates to about 5.")
 
 
 # --- shape ------------------------------------------------------------------
