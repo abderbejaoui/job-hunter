@@ -2855,9 +2855,10 @@ def restore_scheme(profile):
 #     jobhunt/runs/<date>-<slug>/       everything made for one job
 #     jobhunt/runs/log.md               one line per job
 #
-# The date prefix means re-running the same job on the same day overwrites,
-# which is what you want while iterating, and two jobs at the same company a
-# month apart do not collide.
+# The date prefix means re-reading the same job on the same day lands in the
+# same run - the posting is refreshed and everything else made for it stays -
+# and two jobs at the same company a month apart do not collide. A different
+# posting that slugs the same on the same day gets `-2`, `-3`, ...
 
 WORKSPACE = "jobhunt"
 CV_DIR = "cv"
@@ -2900,9 +2901,14 @@ def log_path(base=None):
     return runs_dir(base) / LOG_NAME
 
 
-def incoming(url, base=None):
-    """Where a fetch lands before anyone knows what the job is called."""
-    digest = hashlib.sha1(url.encode()).hexdigest()[:10]
+def incoming(key, base=None):
+    """Where a fetch lands before anyone knows what the job is called.
+
+    `key` is the URL, or the pasted text when there is no URL: every pasted
+    posting used to hash the same placeholder and land in the same directory,
+    so two read before either was parsed overwrote each other.
+    """
+    digest = hashlib.sha1(key.encode()).hexdigest()[:10]
     return runs_dir(base) / INCOMING / digest
 
 
@@ -2915,17 +2921,60 @@ def is_incoming(run):
     return Path(run).parent.name == INCOMING
 
 
+def _posting_key(run):
+    """What makes a run's posting this posting: its address, or for pasted
+    text with none, the text itself. None when the run never recorded it."""
+    try:
+        seen = json.loads((Path(run) / "source.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    # Whitespace is folded so pasting the same description twice, one copy
+    # with a trailing newline, is still the same posting.
+    return seen.get("url") or " ".join(str(seen.get("text", "")).split()) or None
+
+
 def promote(source, slug, base=None):
-    """Move a fetched run to its real name, now that the job has been read."""
+    """Move a fetched run to its real name, now that the job has been read.
+
+    Returns the run and the names of what was already in it and stayed.
+
+    The name is only the date and the slug, so two different postings can
+    share one - "Engineer at Acme" in Berlin and in London. A second posting
+    gets `-2`, `-3`, ... rather than landing beside the first one's CV and
+    letter, which every later step would then build on. A run that never
+    recorded its source counts as a different posting: a spare directory
+    costs nothing, a CV tailored to the wrong job costs the application.
+
+    The same posting read again on the same day goes back into its run: the
+    fetched files replace their namesakes and everything else stays. This used
+    to delete the run first, which took an hour's tailored CV and the letter
+    with the stale page.txt. What stayed is returned because it was made from
+    the earlier read, and if the posting changed it needs making again.
+    """
     source = Path(source)
-    target = settled(slug, base)
+    mine = _posting_key(source)
+    target, n = settled(slug, base), 1
+    while target.exists() and (mine is None or _posting_key(target) != mine):
+        n += 1
+        target = settled(f"{slug}-{n}", base)
     if target.resolve() == source.resolve():
-        return target
+        return target, []
     target.parent.mkdir(parents=True, exist_ok=True)
-    if target.exists():
-        shutil.rmtree(target)
-    shutil.move(str(source), str(target))
-    return target
+    if not target.exists():
+        shutil.move(str(source), str(target))
+        return target, []
+    # Dotfiles are the file manager's (.DS_Store), not something a skill made.
+    kept = sorted(p.name for p in target.iterdir()
+                  if not (source / p.name).exists() and not p.name.startswith("."))
+    for item in source.iterdir():
+        replaced = target / item.name
+        if replaced.is_dir():
+            shutil.rmtree(replaced)
+        elif replaced.exists():
+            replaced.unlink()
+        shutil.move(str(item), str(replaced))
+    shutil.rmtree(source, ignore_errors=True)
+    return target, kept
 
 
 def run_dir(given, base=None):
@@ -2997,7 +3046,8 @@ def note(run, label, url, base=None):
         log.write_text("# Applications\n\n"
                        "One line per job prepared. Add what happened next yourself.\n\n",
                        encoding="utf-8")
-    line = f"- {today()}  {label}  <{url}>  `{Path(run).name}`\n"
+    where = f"  <{url}>" if url else ""      # pasted text has no address
+    line = f"- {today()}  {label}{where}  `{Path(run).name}`\n"
     if line not in log.read_text(encoding="utf-8"):
         with log.open("a", encoding="utf-8") as handle:
             handle.write(line)

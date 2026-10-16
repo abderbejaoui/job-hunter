@@ -40,7 +40,7 @@ def work(argv):
     else:
         parser.error("give a URL, or --text with a file of pasted description")
 
-    run = jh.run_dir(args.run) if args.run else jh.incoming(page.url or "pasted")
+    run = jh.run_dir(args.run) if args.run else jh.incoming(page.url or page.text)
     run.mkdir(parents=True, exist_ok=True)
     jh.write_text(run, "page.txt", jh.trim(page.text))
     # What we observed, kept beside the text so --parse does not have to be
@@ -78,13 +78,18 @@ def _parse(args):
     jh.save(job, run / "job.yaml")
     # A fetch lands under a hash of the URL, because nothing knows what the job
     # is called yet. Now that it has been read, it gets its real name.
-    settled = jh.promote(run, job.slug) if jh.is_incoming(run) else run
+    settled, kept = jh.promote(run, job.slug) if jh.is_incoming(run) else (run, [])
     jh.note(settled, job.label, job.url)
+    if kept:
+        # Made from the earlier read of this posting. If it changed, they are
+        # tailored to the old one, and only the agent can tell whether it did.
+        print(f"{settled.name} already had {', '.join(kept)}; kept. "
+              "Remake them if the posting changed.", file=sys.stderr)
 
     jh.emit({"run": str(settled), "label": job.label, "slug": job.slug,
              "requirements": len(job.requirements),
              "nice_to_have": len(job.nice_to_have), "language": job.language,
-             "brand_color": job.brand_color})
+             "brand_color": job.brand_color, "kept": kept})
     return jh.OK
 
 

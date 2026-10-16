@@ -189,6 +189,62 @@ def test_what_we_observed_beats_what_the_model_wrote(work):
     assert saved.url == "https://real.example/jobs/1"
 
 
+def test_re_reading_a_posting_keeps_the_tailored_cv(work):
+    """The same job, pasted twice on the same day. The second read used to
+    delete the run and everything made for it."""
+    posting = Path(work) / "p.txt"
+    posting.write_text(POSTING, encoding="utf-8")
+    got = emitted(run("jobhunt-posting", "--text", posting, "https://z.example/1",
+                      work=work))
+    got = emitted(run("jobhunt-posting", "--parse", write(work, "j.json", JOB),
+                      "--run", got["run"], work=work))
+    run_dir = Path(got["run"])
+    run("jobhunt-tailor", write(work, "s.json", SELECTION), "--run", run_dir, work=work)
+    assert (run_dir / "cv.yaml").exists()
+
+    got = emitted(run("jobhunt-posting", "--text", posting, "https://z.example/1",
+                      work=work))
+    done = run("jobhunt-posting", "--parse", write(work, "j.json", JOB),
+               "--run", got["run"], work=work)
+    got = emitted(done)
+    assert Path(got["run"]) == run_dir
+    assert (run_dir / "cv.yaml").exists(), "re-reading the posting lost the CV"
+    assert "cv.yaml" in got["kept"], "the agent is told what predates this read"
+    assert "cv.yaml" in done.stderr
+
+
+def test_a_different_posting_with_the_same_name_starts_clean(work):
+    """Same title, same company, same day, another city: a different job, and
+    it must not inherit the first one's tailored CV."""
+    posting = Path(work) / "p.txt"
+    posting.write_text(POSTING, encoding="utf-8")
+    got = emitted(run("jobhunt-posting", "--text", posting, "https://z.example/berlin",
+                      work=work))
+    first = emitted(run("jobhunt-posting", "--parse", write(work, "j.json", JOB),
+                        "--run", got["run"], work=work))
+    run("jobhunt-tailor", write(work, "s.json", SELECTION), "--run", first["run"],
+        work=work)
+
+    got = emitted(run("jobhunt-posting", "--text", posting, "https://z.example/london",
+                      work=work))
+    second = emitted(run("jobhunt-posting", "--parse",
+                         write(work, "j.json", {**JOB, "location": "London"}),
+                         "--run", got["run"], work=work))
+    assert second["run"] == first["run"] + "-2"
+    assert second["kept"] == []
+    assert not (Path(second["run"]) / "cv.yaml").exists()
+
+
+def test_two_pasted_postings_with_no_url_land_apart(work):
+    first = Path(work) / "a.txt"
+    first.write_text(POSTING, encoding="utf-8")
+    second = Path(work) / "b.txt"
+    second.write_text(POSTING.replace("Zeta", "Acme"), encoding="utf-8")
+    one = emitted(run("jobhunt-posting", "--text", first, work=work))["run"]
+    two = emitted(run("jobhunt-posting", "--text", second, work=work))["run"]
+    assert one != two
+
+
 def test_a_posting_too_thin_to_use_stops_the_run(work):
     thin = Path(work) / "thin.txt"
     thin.write_text("Data Engineer. Apply now.", encoding="utf-8")

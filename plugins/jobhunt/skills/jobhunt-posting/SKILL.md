@@ -64,7 +64,18 @@ python3 posting.py --parse job.json --run <run>
 ```
 
 The run is renamed to `<date>-<company>-<role>` once the job has a name, and
-the new path is printed. Use that path from then on.
+the new path is printed. Use that path from then on. A different posting that
+names the same way on the same day - the same title at the same company in
+another city - gets `-2`, `-3` on the end, so it starts clean.
+
+**`kept` not empty?** This posting was already read today, from the same URL
+(or the same pasted text), and `kept` lists what the run holds from that
+earlier read - `cv.yaml`, `letter.yaml`, `fit-before.md` and so on. `page.txt`
+and `job.yaml` are now the new read. If the requirements, title or location
+changed since, everything in `kept` is aimed at a posting that no longer
+exists: score fit `--when before` again, re-tailor, and redo whatever else is
+listed. If you cannot tell whether it changed, redo them. Only when you know
+nothing material changed, keep them, and tell the person you did.
 
 ## Getting it right
 

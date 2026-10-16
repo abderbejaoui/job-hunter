@@ -181,6 +181,85 @@ def test_a_run_is_addressed_by_name(tmp_path, monkeypatch):
     assert jh.run_dir("2026-09-24-acme") == (tmp_path / "runs" / "2026-09-24-acme").resolve()
 
 
+def _read(url="", text="the posting"):
+    """A fetch as posting.py leaves it: page.txt and what was observed."""
+    fetched = jh.incoming(url or text)
+    fetched.mkdir(parents=True)
+    (fetched / "page.txt").write_text(text)
+    jh.write_json(fetched, "source.json", {"url": url, "text": text})
+    return fetched
+
+
+def test_re_reading_a_posting_keeps_what_was_made_for_it(tmp_path, monkeypatch):
+    """Reading the same job twice on one day used to delete the whole run -
+    the tailored CV and the letter with it - to make room for page.txt."""
+    monkeypatch.setenv("JOBHUNT_HOME", str(tmp_path))
+    first, _ = jh.promote(_read("https://zeta.example/jobs/1", "first read"),
+                          "zeta-engineer")
+    (first / "cv.yaml").write_text("an hour of tailoring")
+    (first / "fit-before.md").write_text("62%")
+    (first / ".DS_Store").write_text("")
+
+    fetched = _read("https://zeta.example/jobs/1", "read again")
+    target, kept = jh.promote(fetched, "zeta-engineer")
+
+    assert target == first
+    assert kept == ["cv.yaml", "fit-before.md"], "what was made from the old read is named"
+    assert (target / "cv.yaml").read_text() == "an hour of tailoring"
+    assert (target / "page.txt").read_text() == "read again"
+    assert not fetched.exists()
+
+
+def test_a_different_posting_with_the_same_name_gets_its_own_run(tmp_path, monkeypatch):
+    """"Engineer at Acme" in Berlin and in London slug the same. The second
+    used to land beside the first one's CV, and be tailored from it."""
+    monkeypatch.setenv("JOBHUNT_HOME", str(tmp_path))
+    berlin, _ = jh.promote(_read("https://acme.example/jobs/berlin"), "acme-engineer")
+    (berlin / "cv.yaml").write_text("tailored for Berlin")
+
+    london, kept = jh.promote(_read("https://acme.example/jobs/london"), "acme-engineer")
+    assert london.name == berlin.name + "-2"
+    assert kept == [] and not (london / "cv.yaml").exists()
+
+    # And each still finds its own run when read again.
+    again, _ = jh.promote(_read("https://acme.example/jobs/london"), "acme-engineer")
+    assert again == london
+    third, _ = jh.promote(_read("https://acme.example/jobs/paris"), "acme-engineer")
+    assert third.name == berlin.name + "-3"
+
+
+def test_pasted_text_is_the_same_posting_only_when_the_text_is(tmp_path, monkeypatch):
+    monkeypatch.setenv("JOBHUNT_HOME", str(tmp_path))
+    first, _ = jh.promote(_read(text="Engineer at Acme, Berlin."), "acme-engineer")
+    (first / "cv.yaml").write_text("tailored")
+
+    same, kept = jh.promote(_read(text="Engineer at Acme, Berlin.\n"), "acme-engineer")
+    assert same == first and kept == ["cv.yaml"]
+
+    other, kept = jh.promote(_read(text="Engineer at Acme, London."), "acme-engineer")
+    assert other.name == first.name + "-2" and kept == []
+
+
+def test_a_run_that_never_recorded_its_source_is_not_merged_into(tmp_path, monkeypatch):
+    monkeypatch.setenv("JOBHUNT_HOME", str(tmp_path))
+    old = jh.settled("acme-engineer")
+    old.mkdir(parents=True)
+    (old / "cv.yaml").write_text("from some posting")
+    target, _ = jh.promote(_read("https://acme.example/jobs/1"), "acme-engineer")
+    assert target != old
+
+
+def test_two_pasted_postings_do_not_share_a_directory(tmp_path, monkeypatch):
+    monkeypatch.setenv("JOBHUNT_HOME", str(tmp_path))
+    assert jh.incoming("Data Engineer at Zeta ...") != jh.incoming("Analyst at Acme ...")
+
+
+def test_a_run_with_no_url_is_logged_without_empty_brackets(tmp_path):
+    log = jh.note(tmp_path / "runs" / "2026-01-01-zeta", "Engineer at Zeta", "",
+                  base=tmp_path)
+    assert "<>" not in log.read_text(encoding="utf-8")
+
+
 def test_save_is_atomic(tmp_path):
     """An interrupted write must not leave half a profile where a whole one was."""
     path = tmp_path / "profile.yaml"
