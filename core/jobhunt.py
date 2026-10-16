@@ -3818,11 +3818,11 @@ def run_cli(work, argv=None):
 #: What each dimension is worth. Weighted by how much a reader actually
 #: notices, not by how easy it was to measure.
 WEIGHTS = {
-    "evidence": 30,     # bullets that carry a figure
-    "openers": 15,      # bullets that start by describing a duty
+    "evidence": 30,     # lines that carry a figure
+    "openers": 15,      # lines that start by describing a duty
     "order": 15,        # the strongest line, where a reader will reach it
     "complete": 15,     # the fields an employer needs to act
-    "shown": 15,        # skills the bullets actually demonstrate
+    "shown": 15,        # skills the work actually demonstrates
     "shape": 10,        # length, bulk, and roles with nothing under them
 }
 
@@ -3895,7 +3895,7 @@ _ASK = [(re.compile(pattern, re.IGNORECASE), question)
 
 #: What to do about a whole dimension, said once rather than once per line.
 ADVICE = {
-    "evidence": ("Every bullet has to answer 'so what'. The figures are almost "
+    "evidence": ("Every line has to answer 'so what'. The figures are almost "
                  "always in your head and not on the page - answer the "
                  "questions below and put the answer in the line."),
     "openers": ("Cut the opener and start with the verb. 'Responsible for the "
@@ -3953,8 +3953,11 @@ class Review:
     dimensions: list = field(default_factory=list)
     bullets: int = 0
     roles: int = 0
+    #: Project descriptions read alongside the bullets - only quantified ones.
+    projects: int = 0
 
-    SHAPE = {"dimensions": (list, Dimension), "bullets": "raw", "roles": "raw"}
+    SHAPE = {"dimensions": (list, Dimension), "bullets": "raw", "roles": "raw",
+             "projects": "raw"}
 
     @property
     def score(self):
@@ -4026,11 +4029,17 @@ def review(profile):
     found.bullets = len(bullets)
     # A student's figures live in project descriptions - "cut validation loss
     # 23%" - and a review that read only role bullets scored such a CV as
-    # carrying no evidence at all. Projects count as lines for evidence and
-    # openers; order and shape stay about roles, which is what they measure.
-    lines = bullets + [(f"projects[{i}].description", project.description)
-                       for i, project in enumerate(profile.projects)
-                       if project.description]
+    # carrying no evidence at all. But "My editor and shell setup." is a fine
+    # project line that no reader expects a figure in, and counting it cost an
+    # experienced CV half its evidence. So a project joins the lines only once
+    # it carries a figure: a plain one changes nothing, a quantified one can
+    # only lift evidence, and its opener is judged like any bullet's. Order
+    # and shape stay about roles, which is what they measure.
+    projects = [(f"projects[{i}].description", project.description)
+                for i, project in enumerate(profile.projects)
+                if is_quantified(project.description)]
+    found.projects = len(projects)
+    lines = bullets + projects
 
     # --- evidence ----------------------------------------------------------
     quantified = [row for row in lines if is_quantified(row[1])]
@@ -4192,7 +4201,9 @@ def review_page(found):
     """The review as something a person reads: score, then what to do."""
     out = [f"CV review - {found.name or 'your CV'}", "",
            f"{found.score} / {found.out_of}   {band(found.score, found.out_of)}",
-           f"{found.roles} roles, {found.bullets} bullets", ""]
+           f"{found.roles} roles, {found.bullets} bullets"
+           + (f", {found.projects} projects with a figure" if found.projects
+              else ""), ""]
 
     for d in sorted(found.dimensions, key=lambda d: _share(d.points, d.out_of)):
         bar = "#" * round(10 * _share(d.points, d.out_of))

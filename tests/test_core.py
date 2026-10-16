@@ -499,11 +499,32 @@ def test_a_projects_figure_counts_as_evidence():
         projects=[jh.Project(name="tune", description="Fine-tuned a 9B model with "
                              "LoRA, cutting validation loss by 23%."),
                   jh.Project(name="eval", description="Evaluated agent frameworks.")])
-    evidence = next(d for d in jh.review(profile).dimensions if d.name == "evidence")
-    assert evidence.points == 10, evidence.tally          # 1 of 3 lines
-    assert "3 lines" in evidence.tally
-    assert {f.where for f in evidence.findings} == {"experience[0].bullets[0]",
-                                                    "projects[1].description"}
+    found = jh.review(profile)
+    evidence = next(d for d in found.dimensions if d.name == "evidence")
+    assert evidence.points == 15, evidence.tally          # 1 of 2 lines
+    assert "2 lines" in evidence.tally
+    # The plain project is neither counted nor flagged.
+    assert {f.where for f in evidence.findings} == {"experience[0].bullets[0]"}
+    assert "1 projects with a figure" in jh.review_page(found)
+
+
+def test_plain_projects_cost_an_experienced_cv_nothing():
+    """A project line nobody expects a figure in must not drag down a CV whose
+    bullets all carry one. Counting them took this CV from 30 to 15 evidence."""
+    role = jh.Role(company="A", start="2019", bullets=[
+        "Cut deploy time from 40 minutes to 6.",
+        "Moved 12 services onto Kubernetes.",
+        "Wrote the on-call runbook used by 30 engineers."])
+    plain = [jh.Project(name=n, description=d) for n, d in [
+        ("dotfiles", "My editor and shell setup."),
+        ("blog", "A static site I write on."),
+        ("talks", "Slides from meetups.")]]
+    bare = jh.review(jh.Profile(experience=[role]))
+    found = jh.review(jh.Profile(experience=[role], projects=plain))
+    assert found.score == bare.score, jh.review_page(found)
+    evidence = next(d for d in found.dimensions if d.name == "evidence")
+    assert evidence.points == evidence.out_of, evidence.tally
+    assert found.projects == 0
 
 
 def test_order_and_shape_still_measure_roles_only():

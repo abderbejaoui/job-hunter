@@ -39,7 +39,7 @@ someone whose work is not on the page yet.
 
 | | worth | what it measures |
 |---|---|---|
-| `evidence` | 30 | bullets and project descriptions carrying a figure. The single biggest predictor of a line being believed |
+| `evidence` | 30 | bullets carrying a figure, plus any project description that carries one (a plain one costs nothing). The single biggest predictor of a line being believed |
 | `openers` | 15 | lines starting "Responsible for", "Involved in", "Worked on" — a duty, not a result |
 | `order` | 15 | whether each role's strongest line is in its first two. Readers stop early, whatever the job |
 | `complete` | 15 | the nine things an employer needs to act: name, email, phone, location, headline, summary, a link, skills, dates |
