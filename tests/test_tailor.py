@@ -9,6 +9,7 @@ as the prompt.
 
 
 import jobhunt
+import pytest
 
 REPLY = {
     "summary": "Data engineer with production pipeline experience.",
@@ -98,6 +99,62 @@ def test_projects_are_selected_not_reworded(profile, job):
     document = jobhunt.tailor(profile, job, {**REPLY, "projects": [{"index": 0,
                                                                  "description": "Rewritten!"}]})
     assert document.projects == [profile.projects[0]]
+
+
+# --- placeholders: template text left in, reported and never blocked -------
+
+@pytest.mark.parametrize("line", [
+    "Grew revenue at [Company] by 20%.",
+    "Joined [MONTH] 2027.",
+    "Cut costs by XX%.",
+    "Saved $XXk a year.",
+    "Led the move to <Company>'s new platform.",
+    "Hello {{company}} team.",
+    "Your Name",
+    "Lorem ipsum dolor sit amet.",
+    "TODO: add the figure.",
+    "Start date TBD.",
+    "FIXME",
+])
+def test_a_placeholder_in_the_profile_is_a_warning(profile, line):
+    profile.experience[0].bullets[0] = line
+    said = [i for i in profile.report() if "placeholder" in i.message]
+    assert [i.path for i in said] == ["experience[0].bullets[0]"], line
+    assert said[0].severity == jobhunt.WARNING
+    assert not profile.blocking_issues(), "a warning, never a block"
+
+
+@pytest.mark.parametrize("line", [
+    "Built a TODO app in React with 300 users.",   # names a thing
+    "Ein TODO-Listen-Tool für das Team gebaut.",
+    "Lideré todo el equipo de datos.",              # Spanish "all"
+    "Werkstudent Data Engineering [m/w/d]",
+    "Wrote up the design in [the RFC](https://example.com/rfc).",
+    "Moved the service to List<String> generics.",
+    "Shipped the XXL size range.",
+    "Answered to the CTO; your name goes on the release notes.",
+])
+def test_honest_prose_is_not_a_placeholder(profile, line):
+    profile.experience[0].bullets[0] = line
+    assert not [i for i in profile.report() if "placeholder" in i.message], line
+
+
+def test_the_posting_s_title_is_not_read_as_a_placeholder(profile, job):
+    """"Data Engineer [Remote]" is the employer's text, carried on the tailored
+    CV as its label, and not something the candidate left unfilled."""
+    job.title = "Data Engineer [Remote]"
+    document = jobhunt.tailor(profile, job, REPLY)
+    assert "[Remote]" in document.job_label
+    assert not [i for i in document.all_issues if "placeholder" in i.message]
+
+
+def test_a_placeholder_in_a_letter_is_a_warning(profile, job):
+    letter = jobhunt.write_letter(profile, job, {
+        "greeting": "Dear [Hiring Manager],", "closing": "Kind regards,",
+        "paragraphs": ["I cut ETL runtime by 35%."]})
+    said = [i for i in letter.all_issues if "placeholder" in i.message]
+    assert [i.path for i in said] == ["greeting"] and "[Hiring Manager]" in said[0].message
+    assert not letter.blocking
 
 
 def test_the_document_carries_the_job_it_was_made_for(profile, job):

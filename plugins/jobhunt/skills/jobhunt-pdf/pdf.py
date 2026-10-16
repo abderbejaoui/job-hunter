@@ -2,7 +2,7 @@
 """Render a CV or a cover letter to PDF, using the browser already installed.
 
 Nothing becomes a file until it is fit to send: a document carrying a blocking
-issue - an unfilled placeholder, a missing name - is refused here rather than
+issue - a missing name, a letter with no body - is refused here rather than
 discovered by the employer. The markdown is written first either way, so a
 machine with no browser still produces something sendable.
 """

@@ -627,6 +627,13 @@ class Profile:
                                     f"No achievements for {role.company or 'this role'} - "
                                     "the tailorer has nothing to work with."))
 
+        # Template text copied from a CV - "[MONTH] 2027" - reached a real PDF
+        # once. A warning, not a block: the person decides what it should say.
+        # Only the profile's own fields: a tailored CV also carries the
+        # posting's title, and "Data Engineer [Remote]" is the employer's text.
+        issues.extend(placeholder_issues(
+            {f.name: getattr(self, f.name) for f in fields(Profile)}))
+
         if not self.skills:
             issues.append(Issue("skills", INFO,
                                 "Listing skills improves keyword matching."))
@@ -831,6 +838,54 @@ def words(text):
     accents, and that behaviour is tested here.
     """
     return [m.group() for m in _WORD.finditer(text)]
+
+
+# --- placeholders ----------------------------------------------------------
+#
+# What a CV copies faithfully from the template it was started from is the
+# placeholder still in it: "[MONTH] 2027" reached a real PDF. It is a warning
+# addressed to the person about to send the document - never a block and never
+# a rewrite: the tool points, the person decides what it should say.
+
+#: Template text, kept narrow because every one of these marks has an honest
+#: use nearby: "[m/w/d]" in a German job title, a markdown link, Java's
+#: List<String>, the Spanish "todo", a "TODO app" on a student's CV. So
+#: brackets count only around a capitalised word, and TODO, TBD and FIXME only
+#: in capitals and standing alone - "TODO:" or "TBD." - not naming a thing.
+_PLACEHOLDER = re.compile(
+    r"(?<!\w)\[[A-Z][A-Za-z]*(?: [A-Za-z]+)*\](?!\()"  # [Company], [Your Name]
+    r"|(?<!\w)<[A-Z][A-Za-z]*(?: [A-Za-z]+)*>"         # <Company>
+    r"|\{\{[^{}\n]*\}\}"                               # {{company}}
+    r"|\bX{2,}[kKmM]?\b"                               # XX%, XXX, $XXk
+    r"|\b(?:TODO|TBD|FIXME)\b(?![\s-]*\w)"             # TODO: ..., start TBD.
+    r"|\b(?:Your Name|YOUR NAME)\b"
+    r"|(?i:\blorem ipsum\b)")
+
+
+def placeholder_issues(value, path=""):
+    """Every string inside `value` that is still template text."""
+    found = []
+
+    def walk(current, at):
+        if isinstance(current, Issue):
+            return
+        if isinstance(current, str):
+            hit = _PLACEHOLDER.search(current)
+            if hit:
+                found.append(Issue(at or "text", WARNING,
+                                   f"Unfilled placeholder text: {hit.group()!r}"))
+        elif dataclasses.is_dataclass(current):
+            for f in fields(current):
+                walk(getattr(current, f.name), f"{at}.{f.name}" if at else f.name)
+        elif isinstance(current, dict):
+            for key, item in current.items():
+                walk(item, f"{at}.{key}" if at else str(key))
+        elif isinstance(current, (list, tuple)):
+            for i, item in enumerate(current):
+                walk(item, f"{at}[{i}]")
+
+    walk(value, path)
+    return found
 
 
 # --- fit --------------------------------------------------------------------
@@ -1624,6 +1679,9 @@ class CoverLetter:
     @property
     def all_issues(self):
         found = [*self.issues]
+        found.extend(placeholder_issues(self.greeting, "greeting"))
+        found.extend(placeholder_issues(self.paragraphs, "paragraphs"))
+        found.extend(placeholder_issues(self.closing, "closing"))
         if not self.paragraphs:
             found.append(Issue("paragraphs", BLOCKING, "The letter has no body text."))
         if not self.signature:
@@ -2387,8 +2445,8 @@ def letter_markdown(letter):
 
 # --- render: the door -------------------------------------------------------
 #
-# The one piece of policy here: a document with a blocking issue - an unfilled
-# placeholder, a missing name - does not become a file. That promise is in the
+# The one piece of policy here: a document with a blocking issue - a missing
+# name, a letter with no body - does not become a file. That promise is in the
 # README, so it is enforced in the one place every export goes through rather
 # than in each caller.
 
@@ -2412,8 +2470,8 @@ def blocking_issues(document):
 
     A tailored CV and a letter each publish their own `blocking` list. A plain
     `Profile` publishes none, and would otherwise walk through the door
-    unchecked - carrying the '[Your Name]' this whole rule exists to stop - so
-    it is validated here instead. The door is one place, for every document.
+    unchecked - with no name on it - so it is validated here instead. The
+    door is one place, for every document.
     """
     declared = getattr(document, "blocking", None)
     if declared is not None:

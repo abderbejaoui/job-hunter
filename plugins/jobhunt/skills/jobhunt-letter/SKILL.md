@@ -48,7 +48,8 @@ language.
 The posting's requirements are **not** a source of things to claim. Naming
 Kafka because the job asks for Kafka is the exact failure this exists to
 prevent. The letter may name the company, the role and the location; anything
-else must come from the profile.
+else must come from the profile. Template text left in - "Dear [Hiring
+Manager]", "XX%" - comes back as a warning: replace it with something true.
 
 ## Exit 2
 
