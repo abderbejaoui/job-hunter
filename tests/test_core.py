@@ -319,18 +319,50 @@ def test_windows_browsers_are_looked_for_where_windows_puts_them(monkeypatch):
     because pathlib picks its Path class from `os.name` too."""
     monkeypatch.setenv("LOCALAPPDATA", r"C:\Users\ada\AppData\Local")
     monkeypatch.setenv("PROGRAMFILES", r"C:\Program Files")
+    monkeypatch.delenv("ProgramW6432", raising=False)
     candidates = jh.browser_candidates("nt")
     assert r"C:\Program Files\Google\Chrome\Application\chrome.exe" in candidates
     assert r"C:\Users\ada\AppData\Local\Microsoft\Edge\Application\msedge.exe" in candidates
     assert candidates[:len(jh._CHROMES)] == list(jh._CHROMES), "the Unix list still leads"
-    assert any(r"MiKTeX\miktex\bin\x64" in d for d in jh.tex_dirs("nt"))
 
 
-def test_on_a_unix_the_windows_paths_are_not_tried():
+def test_a_32_bit_python_still_finds_a_64_bit_browser(monkeypatch):
+    """Under a 32-bit Python, PROGRAMFILES is the (x86) folder, and 64-bit
+    Chrome is not in it. ProgramW6432 is the one that still says where it is."""
+    monkeypatch.setenv("PROGRAMFILES", r"C:\Program Files (x86)")
+    monkeypatch.setenv("ProgramW6432", r"C:\Program Files")
+    candidates = jh.browser_candidates("nt")
+    assert r"C:\Program Files\Google\Chrome\Application\chrome.exe" in candidates
+    assert r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe" in candidates
+
+
+def test_miktex_is_looked_for_where_its_installer_puts_it(monkeypatch):
+    """Per user it is LOCALAPPDATA\\Programs\\MiKTeX, not LOCALAPPDATA\\MiKTeX,
+    and there is no 64-bit MiKTeX under Program Files (x86) to find."""
+    monkeypatch.setenv("LOCALAPPDATA", r"C:\Users\ada\AppData\Local")
+    monkeypatch.setenv("PROGRAMFILES", r"C:\Program Files (x86)")
+    monkeypatch.setenv("ProgramW6432", r"C:\Program Files")
+    dirs = jh.tex_dirs("nt")
+    assert r"C:\Program Files\MiKTeX\miktex\bin\x64" in dirs
+    assert r"C:\Users\ada\AppData\Local\Programs\MiKTeX\miktex\bin\x64" in dirs
+    assert not any("(x86)" in d for d in dirs), dirs
+
+
+def test_on_a_unix_the_windows_paths_are_not_tried(tmp_path, monkeypatch):
+    """Nothing changes on a Unix: no Windows folder, and no .exe looked for,
+    so a stray xelatex.exe is not mistaken for an engine that runs here."""
     if jh.os.name == "nt":
         pytest.skip("this is Windows")
-    assert not any(".exe" in c for c in jh.browser_candidates())
+    assert not any(c.endswith(".exe") for c in jh.browser_candidates())
     assert jh.tex_dirs() == list(jh._TEX_DIRS)
+
+    monkeypatch.delenv("JOBHUNT_TEX", raising=False)
+    monkeypatch.setenv("PATH", str(tmp_path / "nothing-here"))
+    monkeypatch.setattr(jh, "_TEX_DIRS", (str(tmp_path),))
+    (tmp_path / "xelatex.exe").write_text("")
+    assert jh.find_tex() is None
+    (tmp_path / "xelatex").write_text("")
+    assert jh.find_tex() == str(tmp_path / "xelatex"), "the folder is searched"
 
 
 def test_no_browser_says_the_markdown_was_still_written(tmp_path, monkeypatch):

@@ -2229,8 +2229,16 @@ _WINDOWS_TAILS = (r"Google\Chrome\Application\chrome.exe",
                   r"Chromium\Application\chrome.exe")
 
 
+def _program_files():
+    """The 64-bit Program Files. Under a 32-bit Python on 64-bit Windows,
+    PROGRAMFILES names the (x86) folder, and only ProgramW6432 says where
+    64-bit Chrome and MiKTeX went."""
+    return (os.environ.get("ProgramW6432")
+            or os.environ.get("PROGRAMFILES", r"C:\Program Files"))
+
+
 def _windows_roots():
-    return [root for root in (os.environ.get("PROGRAMFILES", r"C:\Program Files"),
+    return [root for root in (_program_files(),
                               os.environ.get("PROGRAMFILES(X86)", r"C:\Program Files (x86)"),
                               os.environ.get("LOCALAPPDATA", ""))
             if root]
@@ -2300,15 +2308,18 @@ _TEX_DIRS = ("/Library/TeX/texbin", "/usr/local/texlive/bin",
 def tex_dirs(platform=None):
     """The folders a TeX engine is looked for in when it is not on PATH.
 
-    On Windows, MiKTeX installs per user under LOCALAPPDATA and TeX Live
-    under C:\\texlive\\<year>; neither puts itself on PATH for a shell that
-    was already open. The TeX Live year is read off the disk, newest first,
-    and only on a real Windows - a Unix cannot glob a drive letter.
+    On Windows, MiKTeX installs under Program Files for everyone or under
+    LOCALAPPDATA\\Programs for one user, and TeX Live under C:\\texlive\\<year>;
+    none puts itself on PATH for a shell that was already open. MiKTeX has
+    no 64-bit build in Program Files (x86), so that root is not tried. The
+    TeX Live year is read off the disk, newest first, and only on a real
+    Windows - a Unix cannot glob a drive letter.
     """
     found = list(_TEX_DIRS)
     if (platform or os.name) == "nt":
-        for root in _windows_roots():
-            found.append(root + r"\MiKTeX\miktex\bin\x64")
+        found.append(_program_files() + r"\MiKTeX\miktex\bin\x64")
+        if os.environ.get("LOCALAPPDATA"):
+            found.append(os.environ["LOCALAPPDATA"] + r"\Programs\MiKTeX\miktex\bin\x64")
         if os.name == "nt":
             found += [str(p) for p in sorted(Path("C:/texlive").glob("*/bin/windows"),
                                              reverse=True)]
@@ -2358,11 +2369,13 @@ def find_tex():
         found = shutil.which(name)
         if found:
             return found
+    # Only Windows names its engines .exe; a Unix has no reason to look for one.
+    suffix = ".exe" if os.name == "nt" else ""
     for folder in tex_dirs():
         for name in _TEX_NAMES:
-            for candidate in (Path(folder) / name, Path(folder) / f"{name}.exe"):
-                if candidate.exists():
-                    return str(candidate)
+            candidate = Path(folder) / (name + suffix)
+            if candidate.exists():
+                return str(candidate)
     return None
 
 
