@@ -9,6 +9,7 @@ as the prompt.
 
 
 import jobhunt
+import pytest
 
 REPLY = {
     "summary": "Data engineer with production pipeline experience.",
@@ -100,39 +101,59 @@ def test_projects_are_selected_not_reworded(profile, job):
     assert document.projects == [profile.projects[0]]
 
 
-# --- figures: the one thing the model can invent in a bullet ------------
+# --- placeholders: template text left in, reported and never blocked -------
 
-def test_a_figure_the_profile_does_not_hold_is_reported(profile, job):
-    """60% is nowhere in the fixture. The p99 beside it is a name, not a figure."""
-    document = jobhunt.tailor(profile, job, {**REPLY, "roles": [
-        {"index": 0, "bullets": ["Cut p99 latency 60% by rewriting the dbt models."]}]})
-    said = [i for i in document.issues if "figure" in i.message]
-    assert len(said) == 1
-    assert "'60%'" in said[0].message and said[0].path == "experience[0].bullets[0]"
+@pytest.mark.parametrize("line", [
+    "Grew revenue at [Company] by 20%.",
+    "Joined [MONTH] 2027.",
+    "Cut costs by XX%.",
+    "Saved $XXk a year.",
+    "Led the move to <Company>'s new platform.",
+    "Hello {{company}} team.",
+    "Your Name",
+    "Lorem ipsum dolor sit amet.",
+    "TODO: add the figure.",
+    "Start date TBD.",
+    "FIXME",
+])
+def test_a_placeholder_in_the_profile_is_a_warning(profile, line):
+    profile.experience[0].bullets[0] = line
+    said = [i for i in profile.report() if "placeholder" in i.message]
+    assert [i.path for i in said] == ["experience[0].bullets[0]"], line
     assert said[0].severity == jobhunt.WARNING
-    assert not document.blocking, "a review aid, not a block"
+    assert not profile.blocking_issues(), "a warning, never a block"
 
 
-def test_a_figure_the_profile_holds_passes_however_it_is_written(profile, job):
-    """35% is in the profile; so is 40 (people). 1,200 and 1200 are one number."""
-    profile.experience[0].bullets.append("Closed 1200 tickets.")
-    document = jobhunt.tailor(profile, job, {**REPLY, "roles": [
-        {"index": 0, "bullets": ["Cut ETL runtime by 35%, for 40 people, across 1,200 tickets."]}]})
-    assert not [i for i in document.issues if "figure" in i.message]
+@pytest.mark.parametrize("line", [
+    "Built a TODO app in React with 300 users.",   # names a thing
+    "Ein TODO-Listen-Tool für das Team gebaut.",
+    "Lideré todo el equipo de datos.",              # Spanish "all"
+    "Werkstudent Data Engineering [m/w/d]",
+    "Wrote up the design in [the RFC](https://example.com/rfc).",
+    "Moved the service to List<String> generics.",
+    "Shipped the XXL size range.",
+    "Answered to the CTO; your name goes on the release notes.",
+])
+def test_honest_prose_is_not_a_placeholder(profile, line):
+    profile.experience[0].bullets[0] = line
+    assert not [i for i in profile.report() if "placeholder" in i.message], line
 
 
-def test_a_figure_in_the_summary_is_checked_too(profile, job):
-    document = jobhunt.tailor(profile, job, {**REPLY, "summary": "Ten years and 300 deploys."})
-    said = [i for i in document.issues if "figure" in i.message]
-    assert [i.path for i in said] == ["summary"] and "'300'" in said[0].message
+def test_the_posting_s_title_is_not_read_as_a_placeholder(profile, job):
+    """"Data Engineer [Remote]" is the employer's text, carried on the tailored
+    CV as its label, and not something the candidate left unfilled."""
+    job.title = "Data Engineer [Remote]"
+    document = jobhunt.tailor(profile, job, REPLY)
+    assert "[Remote]" in document.job_label
+    assert not [i for i in document.all_issues if "placeholder" in i.message]
 
 
-def test_a_letter_figure_the_profile_does_not_hold_is_reported(profile, job):
+def test_a_placeholder_in_a_letter_is_a_warning(profile, job):
     letter = jobhunt.write_letter(profile, job, {
-        "greeting": "Dear Zeta,", "closing": "Kind regards,",
-        "paragraphs": ["I cut ETL runtime by 35%.", "I have led teams of 12."]})
-    said = [i for i in letter.all_issues if "figure" in i.message]
-    assert [i.path for i in said] == ["paragraphs[1]"] and "'12'" in said[0].message
+        "greeting": "Dear [Hiring Manager],", "closing": "Kind regards,",
+        "paragraphs": ["I cut ETL runtime by 35%."]})
+    said = [i for i in letter.all_issues if "placeholder" in i.message]
+    assert [i.path for i in said] == ["greeting"] and "[Hiring Manager]" in said[0].message
     assert not letter.blocking
 
 

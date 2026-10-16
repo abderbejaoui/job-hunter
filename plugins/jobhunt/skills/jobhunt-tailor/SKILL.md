@@ -48,6 +48,8 @@ python3 tailor.py selection.json --run <run>
   latency 40%" invents a number.
 - **Every figure must already be in the profile.** If the profile says 35%, the
   bullet says 35%.
+- **Template text left in** - "[Company]", "XX%", "TODO:" - comes back as a
+  warning, never a block. Pass it on; do not fill it in yourself.
 - **Drop roles freely.** That is what tailoring is. The tool reports which ones
   you left off so the candidate can disagree.
 - **Order is not yours.** Roles come out in the profile's order whatever order
